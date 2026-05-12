@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm run format:check
+      - run: pnpm run test
+      - run: pnpm run build
+      - name: Smoke-test built CLI
+        run: |
+          node dist/cli.js --help
+          node dist/cli.js validate --tpl-dir test/fixtures/tpl --config test/fixtures/reference-data.json
+          node dist/cli.js related testing --tpl-dir test/fixtures/tpl
+          node dist/cli.js review-body --tpl-dir test/fixtures/tpl --repo kompiro/example > /dev/null

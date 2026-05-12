@@ -1,0 +1,67 @@
+{
+  "name": "@kompiro/tpl-tools",
+  "version": "0.0.0",
+  "description": "Frontmatter-driven Test Perspective Library (TPL) validator and query tool.",
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "author": "Hiroki Kondo <kompiro@gmail.com>",
+  "homepage": "https://github.com/kompiro/tpl-tools",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kompiro/tpl-tools.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kompiro/tpl-tools/issues"
+  },
+  "keywords": [
+    "tpl",
+    "test-perspective",
+    "documentation",
+    "frontmatter"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "tpl": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "prepare": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "oxlint --deny-warnings src test",
+    "format": "oxfmt --write src test",
+    "format:check": "oxfmt --check src test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "oxfmt": "^0.47.0",
+    "oxlint": "^1.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^4.0.0"
+  },
+  "packageManager": "pnpm@10.33.0"
+}
