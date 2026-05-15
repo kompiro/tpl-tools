@@ -91,6 +91,18 @@ Prints the markdown body for a periodic TPL deprecation-review issue to stdout
 (`--repo` defaults to `$GITHUB_REPOSITORY`). Typically piped into
 `gh issue create --body-file -`.
 
+## Reference templates
+
+This repo ships starter templates you can copy into your project:
+
+- [`docs/test-perspectives/TEMPLATE.md`](./docs/test-perspectives/TEMPLATE.md) —
+  frontmatter + body skeleton for a new TPL
+- [`docs/test-perspectives/README.md`](./docs/test-perspectives/README.md) —
+  index, ADR との違い、proactive / retrospective、3-Yes ルール、ライフサイクル、運用ノート
+
+For a fully populated example corpus, see
+[karasu's `docs/test-perspectives/`](https://github.com/kompiro/karasu/tree/main/docs/test-perspectives).
+
 ## Library
 
 ```ts
