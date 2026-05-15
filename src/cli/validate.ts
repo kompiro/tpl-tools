@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadReferenceData } from "../config.ts";
+import { loadReferenceData, type ReferenceData } from "../config.ts";
 import { formatFinding, validateAll } from "../validate.ts";
 import { parseFlags } from "./args.ts";
 
@@ -11,8 +11,11 @@ README index.
 
 Options:
   --tpl-dir <path>         TPL directory (default: docs/test-perspectives)
-  --config <path>          JSON file holding a "topics" array (controlled
-                           vocabulary). Omit to skip topic validation.
+  --config <path>          JSON file holding "topics" (controlled vocabulary,
+                           optional) and "idFormat" ("date-sequence" |
+                           "issue-number", default "date-sequence"). Omit
+                           to skip topic validation and use the default id
+                           format.
   --packages-root <path>   Directory whose subdirectories are the allowed
                            values for scope.packages. Omit to skip the
                            scope.packages check.
@@ -41,11 +44,11 @@ export function main(argv: readonly string[]): number {
   }
   const readmePath = join(tplDir, "README.md");
 
-  let validTopics: readonly string[];
+  let refData: ReferenceData;
   try {
-    validTopics = loadReferenceData(
+    refData = loadReferenceData(
       parsed.options.has("config") ? resolve(cwd, parsed.options.get("config")!) : undefined,
-    ).topics;
+    );
   } catch (e) {
     process.stderr.write(`error: ${(e as Error).message}\n`);
     return 2;
@@ -61,9 +64,10 @@ export function main(argv: readonly string[]): number {
 
   const { findings, parsed: tpls } = validateAll({
     tplDir,
-    validTopics,
+    validTopics: refData.topics,
     validPackages,
     readmePath,
+    idFormat: refData.idFormat,
   });
 
   if (findings.length === 0) {

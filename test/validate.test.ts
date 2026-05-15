@@ -293,6 +293,110 @@ describe("README index check", () => {
 });
 
 // ---------------------------------------------------------------------------
+// idFormat: issue-number coverage
+// ---------------------------------------------------------------------------
+
+describe("validate with idFormat: issue-number", () => {
+  const ISSUE_CTX = {
+    validTopics: VALID_TOPICS,
+    validPackages: null,
+    idFormat: "issue-number" as const,
+  };
+
+  it("accepts issue-number id and matching filename", () => {
+    const { findings, parsed } = validateFile(
+      "TPL-30-x.md",
+      makeFm({ id: "TPL-30", scope: { packages: [] } }),
+      ISSUE_CTX,
+    );
+    expect(findings).toEqual([]);
+    expect(parsed?.fm.id).toBe("TPL-30");
+  });
+
+  it("flags filename / id mismatch under issue-number", () => {
+    const { findings } = validateFile(
+      "TPL-30-x.md",
+      makeFm({ id: "TPL-31", scope: { packages: [] } }),
+      ISSUE_CTX,
+    );
+    expect(
+      findings.some(
+        (f) =>
+          f.kind === "filename-id-mismatch" &&
+          (f as { idInFm: string; idInFile: string }).idInFm === "TPL-31" &&
+          (f as { idInFm: string; idInFile: string }).idInFile === "TPL-30",
+      ),
+    ).toBe(true);
+  });
+
+  it("flags date-sequence id under issue-number format", () => {
+    const { findings } = validateFile(
+      "TPL-30-x.md",
+      makeFm({ id: "TPL-20260510-01", scope: { packages: [] } }),
+      ISSUE_CTX,
+    );
+    expect(
+      findings.some(
+        (f) =>
+          f.kind === "id-format-invalid" && (f as { expected: string }).expected === "issue-number",
+      ),
+    ).toBe(true);
+  });
+
+  it("matches issue-number README links via validateReadmeIndex", () => {
+    const tpl: ParsedTpl = {
+      file: "TPL-30-x.md",
+      fm: {
+        id: "TPL-30",
+        title: "x",
+        status: "active",
+        date: "2026-05-15",
+        applicable_to: ["p"],
+        discovered_from: [{ issue: "#30" }],
+        topic: "testing",
+        scope: { packages: [] },
+      },
+      body: "",
+    };
+    const { rowIds, findings } = validateReadmeIndex(
+      "| ID | title |\n|---|---|\n| [TPL-30](TPL-30-x.md) | x |\n",
+      [tpl],
+      TPL_DIR,
+      "issue-number",
+    );
+    expect(rowIds.has("TPL-30")).toBe(true);
+    expect(findings.every((f) => f.kind !== "readme-missing-row")).toBe(true);
+  });
+
+  it("does not greedy-match TPL-3 inside TPL-30 in README links", () => {
+    const tpl3: ParsedTpl = {
+      file: "TPL-3-x.md",
+      fm: {
+        id: "TPL-3",
+        title: "x",
+        status: "active",
+        date: "2026-05-15",
+        applicable_to: ["p"],
+        discovered_from: [{ issue: "#3" }],
+        topic: "testing",
+        scope: { packages: [] },
+      },
+      body: "",
+    };
+    const { rowIds } = validateReadmeIndex(
+      // Only TPL-30 is linked. If the regex weren't bounded by the bracket
+      // we might pick up a phantom TPL-3 too.
+      "| ID |\n|---|\n| [TPL-30](TPL-30-x.md) |\n",
+      [tpl3],
+      TPL_DIR,
+      "issue-number",
+    );
+    expect(rowIds.has("TPL-30")).toBe(true);
+    expect(rowIds.has("TPL-3")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Frontmatter parser
 // ---------------------------------------------------------------------------
 
