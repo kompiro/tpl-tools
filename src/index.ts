@@ -1,7 +1,10 @@
 export {
+  DEFAULT_ID_FORMAT,
+  ID_FORMATS,
   loadReferenceData,
   ReferenceDataInvalidError,
   ReferenceDataMissingError,
+  type IdFormat,
   type ReferenceData,
 } from "./config.ts";
 export {

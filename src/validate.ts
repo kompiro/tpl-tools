@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { load as parseYaml } from "js-yaml";
+import { DEFAULT_ID_FORMAT, type IdFormat } from "./config.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,7 +40,7 @@ export type Finding =
   | { kind: "yaml-parse-error"; file: string; message: string }
   | { kind: "missing-frontmatter"; file: string }
   | { kind: "filename-id-mismatch"; file: string; idInFm: string; idInFile: string }
-  | { kind: "id-format-invalid"; file: string; id: string }
+  | { kind: "id-format-invalid"; file: string; id: string; expected: IdFormat }
   | { kind: "missing-required-field"; file: string; field: string }
   | { kind: "status-invalid"; file: string; value: string }
   | { kind: "topic-invalid"; file: string; topic: string; valid: string[] }
@@ -56,8 +57,41 @@ export type Finding =
 // Constants
 // ---------------------------------------------------------------------------
 
-const FILENAME_RE = /^TPL-(\d{8})-(\d{2})-[a-z0-9-]+\.md$/;
-const ID_RE = /^TPL-\d{8}-\d{2}$/;
+const FILENAME_DATE_RE = /^TPL-(\d{8})-(\d{2})-[a-z0-9-]+\.md$/;
+const FILENAME_ISSUE_RE = /^TPL-(\d+)-[a-z0-9-]+\.md$/;
+const ID_DATE_RE = /^TPL-\d{8}-\d{2}$/;
+const ID_ISSUE_RE = /^TPL-\d+$/;
+const README_LINK_DATE_RE = /\[(TPL-\d{8}-\d{2})\]\(([^)]+)\)/g;
+const README_LINK_ISSUE_RE = /\[(TPL-\d+)\]\(([^)]+)\)/g;
+
+interface IdFormatPatterns {
+  readonly filename: RegExp;
+  readonly id: RegExp;
+  readonly readmeLink: () => RegExp;
+  readonly idFromFilenameMatch: (match: RegExpExecArray) => string;
+  readonly humanIdShape: string;
+}
+
+const DATE_FORMAT_PATTERNS: IdFormatPatterns = {
+  filename: FILENAME_DATE_RE,
+  id: ID_DATE_RE,
+  readmeLink: () => new RegExp(README_LINK_DATE_RE.source, "g"),
+  idFromFilenameMatch: (m) => `TPL-${m[1]}-${m[2]}`,
+  humanIdShape: "TPL-YYYYMMDD-NN",
+};
+
+const ISSUE_FORMAT_PATTERNS: IdFormatPatterns = {
+  filename: FILENAME_ISSUE_RE,
+  id: ID_ISSUE_RE,
+  readmeLink: () => new RegExp(README_LINK_ISSUE_RE.source, "g"),
+  idFromFilenameMatch: (m) => `TPL-${m[1]}`,
+  humanIdShape: "TPL-<n>",
+};
+
+function patternsFor(format: IdFormat): IdFormatPatterns {
+  return format === "issue-number" ? ISSUE_FORMAT_PATTERNS : DATE_FORMAT_PATTERNS;
+}
+
 const VALID_STATUSES: readonly Status[] = ["active", "deprecated"];
 const KNOWN_DISCOVERED_FROM_KEYS = new Set(["issue", "root_cause_adr", "root_cause_file"]);
 const REQUIRED_FIELDS = [
@@ -106,6 +140,11 @@ interface FileValidationContext {
    * monorepo with a `packages/` directory).
    */
   validPackages: readonly string[] | null;
+  /**
+   * TPL id / filename convention. Defaults to `date-sequence` when omitted to
+   * preserve backwards compatibility with pre-`idFormat` call sites.
+   */
+  idFormat?: IdFormat;
 }
 
 export function validateFile(
@@ -138,14 +177,17 @@ export function validateFile(
     return { findings, parsed: null };
   }
 
+  const idFormat = ctx.idFormat ?? DEFAULT_ID_FORMAT;
+  const patterns = patternsFor(idFormat);
+
   const id = fm.id;
-  if (!ID_RE.test(id)) {
-    findings.push({ kind: "id-format-invalid", file, id });
+  if (!patterns.id.test(id)) {
+    findings.push({ kind: "id-format-invalid", file, id, expected: idFormat });
   }
 
-  const fnameMatch = FILENAME_RE.exec(file);
+  const fnameMatch = patterns.filename.exec(file);
   if (fnameMatch) {
-    const idFromFile = `TPL-${fnameMatch[1]}-${fnameMatch[2]}`;
+    const idFromFile = patterns.idFromFilenameMatch(fnameMatch);
     if (idFromFile !== id) {
       findings.push({ kind: "filename-id-mismatch", file, idInFm: id, idInFile: idFromFile });
     }
@@ -244,7 +286,6 @@ interface ReadmeIndexCheckResult {
   rowIds: Set<string>;
 }
 
-const README_LINK_RE = /\[(TPL-\d{8}-\d{2})\]\(([^)]+)\)/g;
 const FENCED_BLOCK_RE = /```[\s\S]*?```/g;
 
 /**
@@ -259,11 +300,13 @@ export function validateReadmeIndex(
   readmeContent: string,
   parsed: readonly ParsedTpl[],
   tplDir: string,
+  idFormat: IdFormat = DEFAULT_ID_FORMAT,
 ): ReadmeIndexCheckResult {
   const findings: Finding[] = [];
   const rowIds = new Set<string>();
   const linkScope = stripFencedBlocks(readmeContent);
-  for (const m of linkScope.matchAll(README_LINK_RE)) {
+  const readmeLinkRe = patternsFor(idFormat).readmeLink();
+  for (const m of linkScope.matchAll(readmeLinkRe)) {
     const [, id, href] = m;
     rowIds.add(id);
     const target = resolve(tplDir, href);
@@ -288,6 +331,10 @@ interface ValidateOptions {
   validTopics: readonly string[];
   validPackages: readonly string[] | null;
   readmePath?: string;
+  /**
+   * TPL id / filename convention. Defaults to `date-sequence` when omitted.
+   */
+  idFormat?: IdFormat;
 }
 
 interface ValidateResult {
@@ -323,6 +370,7 @@ export function loadAllTpls(dir: string): ParsedTpl[] {
 export function validateAll(opts: ValidateOptions): ValidateResult {
   const findings: Finding[] = [];
   const parsed: ParsedTpl[] = [];
+  const idFormat = opts.idFormat ?? DEFAULT_ID_FORMAT;
 
   for (const f of listTplFiles(opts.tplDir)) {
     const full = join(opts.tplDir, f);
@@ -330,6 +378,7 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
     const result = validateFile(full, content, {
       validTopics: opts.validTopics,
       validPackages: opts.validPackages,
+      idFormat,
     });
     findings.push(...result.findings);
     if (result.parsed) parsed.push(result.parsed);
@@ -339,7 +388,7 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
 
   if (opts.readmePath && existsSync(opts.readmePath)) {
     const readme = readFileSync(opts.readmePath, "utf8");
-    const indexResult = validateReadmeIndex(readme, parsed, opts.tplDir);
+    const indexResult = validateReadmeIndex(readme, parsed, opts.tplDir, idFormat);
     findings.push(...indexResult.findings);
   }
 
@@ -359,7 +408,7 @@ export function formatFinding(f: Finding): string {
     case "filename-id-mismatch":
       return `${f.file}: id ${f.idInFm} does not match filename-derived ${f.idInFile}`;
     case "id-format-invalid":
-      return `${f.file}: id "${f.id}" does not match TPL-YYYYMMDD-NN`;
+      return `${f.file}: id "${f.id}" does not match ${patternsFor(f.expected).humanIdShape} (idFormat: ${f.expected})`;
     case "missing-required-field":
       return `${f.file}: missing required field "${f.field}"`;
     case "status-invalid":

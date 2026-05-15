@@ -16,18 +16,38 @@ function tmpFile(name: string, contents: string): string {
 }
 
 describe("loadReferenceData", () => {
-  it("returns empty topics when no path is given", () => {
-    expect(loadReferenceData()).toEqual({ topics: [] });
+  it("returns empty topics and default idFormat when no path is given", () => {
+    expect(loadReferenceData()).toEqual({ idFormat: "date-sequence", topics: [] });
   });
 
   it("reads a topics array from a JSON file", () => {
     const path = tmpFile("ref.json", JSON.stringify({ topics: ["a", "b"], other: 1 }));
-    expect(loadReferenceData(path)).toEqual({ topics: ["a", "b"] });
+    expect(loadReferenceData(path)).toEqual({ idFormat: "date-sequence", topics: ["a", "b"] });
   });
 
   it("treats a missing topics key as empty", () => {
     const path = tmpFile("ref.json", JSON.stringify({ something: "else" }));
-    expect(loadReferenceData(path)).toEqual({ topics: [] });
+    expect(loadReferenceData(path)).toEqual({ idFormat: "date-sequence", topics: [] });
+  });
+
+  it("defaults idFormat to date-sequence when omitted", () => {
+    const path = tmpFile("ref.json", JSON.stringify({ topics: ["a"] }));
+    expect(loadReferenceData(path).idFormat).toBe("date-sequence");
+  });
+
+  it("accepts idFormat: issue-number", () => {
+    const path = tmpFile("ref.json", JSON.stringify({ topics: [], idFormat: "issue-number" }));
+    expect(loadReferenceData(path).idFormat).toBe("issue-number");
+  });
+
+  it("rejects unknown idFormat value", () => {
+    const path = tmpFile("ref.json", JSON.stringify({ topics: [], idFormat: "weekly" }));
+    expect(() => loadReferenceData(path)).toThrow(/idFormat/);
+  });
+
+  it("rejects non-string idFormat value", () => {
+    const path = tmpFile("ref.json", JSON.stringify({ topics: [], idFormat: 1 }));
+    expect(() => loadReferenceData(path)).toThrow(/idFormat/);
   });
 
   it("throws when the file does not exist", () => {
