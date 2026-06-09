@@ -23,6 +23,26 @@ Published to GitHub Packages under the `@kompiro` scope:
 pnpm add -D @kompiro/tpl-tools
 ```
 
+### Standalone binary (no Node required)
+
+For environments without a Node toolchain (other projects, Go/other-language
+devcontainers, etc.), install the self-contained executable published to
+[GitHub Releases](https://github.com/kompiro/tpl-tools/releases):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/kompiro/tpl-tools/main/install.sh | sh
+```
+
+The script detects your OS/arch, downloads the matching binary, verifies its
+SHA256, and installs it to `~/.local/bin/tpl`. Override with `TPL_VERSION`
+(release tag) or `INSTALL_DIR`.
+
+While this repository is private, downloading requires authentication: install
+the [GitHub CLI](https://cli.github.com/) and run `gh auth login` (preferred),
+or set `GITHUB_TOKEN` (the curl fallback also needs `jq`). In a devcontainer,
+add the one-liner above as a `RUN` step in your `Dockerfile` — alongside the
+[adr-tools](https://github.com/kompiro/adr-tools) installer if you use both.
+
 ## CLI
 
 ```

@@ -38,11 +38,13 @@
   },
   "files": [
     "dist",
+    "!dist/bin",
     "LICENSE",
     "README.md"
   ],
   "scripts": {
     "build": "tsup",
+    "build:bin": "bash scripts/build-binaries.sh",
     "prepare": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
