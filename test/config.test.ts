@@ -3,9 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  CONFIG_FILENAME,
   ReferenceDataInvalidError,
   ReferenceDataMissingError,
   loadReferenceData,
+  resolveConfigPath,
 } from "../src/config.ts";
 
 function tmpFile(name: string, contents: string): string {
@@ -14,6 +16,23 @@ function tmpFile(name: string, contents: string): string {
   writeFileSync(path, contents);
   return path;
 }
+
+describe("resolveConfigPath", () => {
+  it("returns an explicit path resolved against cwd, even if it does not exist", () => {
+    expect(resolveConfigPath("custom.json", "/work")).toBe(join("/work", "custom.json"));
+  });
+
+  it("falls back to tpl.config.json in cwd when present", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tpl-resolve-"));
+    writeFileSync(join(dir, CONFIG_FILENAME), "{}");
+    expect(resolveConfigPath(undefined, dir)).toBe(join(dir, CONFIG_FILENAME));
+  });
+
+  it("returns undefined when no explicit path and no tpl.config.json", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tpl-resolve-"));
+    expect(resolveConfigPath(undefined, dir)).toBeUndefined();
+  });
+});
 
 describe("loadReferenceData", () => {
   it("returns empty topics and default idFormat when no path is given", () => {

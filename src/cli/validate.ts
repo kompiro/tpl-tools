@@ -1,6 +1,11 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadReferenceData, type ReferenceData } from "../config.ts";
+import {
+  CONFIG_FILENAME,
+  loadReferenceData,
+  type ReferenceData,
+  resolveConfigPath,
+} from "../config.ts";
 import { formatFinding, validateAll } from "../validate.ts";
 import { parseFlags } from "./args.ts";
 
@@ -13,9 +18,10 @@ Options:
   --tpl-dir <path>         TPL directory (default: docs/test-perspectives)
   --config <path>          JSON file holding "topics" (controlled vocabulary,
                            optional) and "idFormat" ("date-sequence" |
-                           "issue-number", default "date-sequence"). Omit
-                           to skip topic validation and use the default id
-                           format.
+                           "issue-number", default "date-sequence").
+                           Defaults to ${CONFIG_FILENAME} in CWD when present;
+                           omit and provide no ${CONFIG_FILENAME} to skip topic
+                           validation and use the default id format.
   --packages-root <path>   Directory whose subdirectories are the allowed
                            values for scope.packages. Omit to skip the
                            scope.packages check.
@@ -46,9 +52,7 @@ export function main(argv: readonly string[]): number {
 
   let refData: ReferenceData;
   try {
-    refData = loadReferenceData(
-      parsed.options.has("config") ? resolve(cwd, parsed.options.get("config")!) : undefined,
-    );
+    refData = loadReferenceData(resolveConfigPath(parsed.options.get("config"), cwd));
   } catch (e) {
     process.stderr.write(`error: ${(e as Error).message}\n`);
     return 2;

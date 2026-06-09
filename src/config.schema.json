@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kompiro/tpl-tools/config.schema.json",
+  "title": "TPL tooling config",
+  "description": "Reference data consumed by tpl:* commands. Looked up as tpl.config.json at the directory where the commands are invoked, or passed explicitly via --config (so a shared file such as adr.config.json can be reused).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "idFormat": {
+      "type": "string",
+      "enum": ["date-sequence", "issue-number"],
+      "default": "date-sequence",
+      "description": "TPL id / filename convention. `date-sequence` expects `TPL-YYYYMMDD-NN-<slug>.md` (id `TPL-YYYYMMDD-NN`); `issue-number` expects `TPL-<n>-<slug>.md` (id `TPL-<n>`, no zero padding)."
+    },
+    "topics": {
+      "type": "array",
+      "description": "Controlled vocabulary for a TPL's `topic` field. Empty or omitted disables topic validation.",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

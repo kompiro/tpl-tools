@@ -48,10 +48,35 @@ add the one-liner above as a `RUN` step in your `Dockerfile` — alongside the
 ```
 tpl <subcommand> [options]
 
+  init           generate a starter tpl.config.json in the target dir (or CWD)
   validate       validate TPL frontmatter, filenames, cross-refs, README index
   related        list active TPLs matching a topic (markdown for Design Docs)
   review-body    print the body for a periodic TPL deprecation-review issue
 ```
+
+### Configuration (`tpl.config.json`)
+
+`tpl` reads reference data — the controlled `topics` vocabulary and the
+`idFormat` — from a JSON file. Resolution order:
+
+1. an explicit `--config <path>` (highest priority)
+2. `tpl.config.json` in the working directory, when present
+3. none — topic validation is skipped and the default id format is used
+
+This lets `tpl` run standalone (its own `tpl.config.json`) **or** reuse a
+shared file in a repo that also uses [adr-tools](https://github.com/kompiro/adr-tools)
+by pointing `--config` at `adr.config.json` (extra keys are ignored). Run
+`tpl init` to scaffold one. The generated file's `$schema` points at the npm
+package path, so editor autocompletion resolves when the package is installed.
+
+### `tpl init`
+
+```
+tpl init [dir]
+```
+
+Writes a starter `tpl.config.json` (defining `topics` and `idFormat`) to `dir`
+(default: CWD). Refuses to overwrite an existing file.
 
 ### `tpl validate`
 
@@ -61,10 +86,9 @@ tpl validate [--tpl-dir <path>] [--config <path>] [--packages-root <path>]
 
 - `--tpl-dir` — directory of TPL files (default `docs/test-perspectives`)
 - `--config` — JSON file holding `topics` (controlled vocabulary, optional)
-  and `idFormat` (optional, see below). **Omit to skip topic validation and
-  use the default id format.** There is no default filename: point this at
-  whatever file owns that vocabulary in your repo (in karasu that is
-  `adr.config.json`).
+  and `idFormat` (optional, see below). Defaults to `tpl.config.json` in CWD
+  when present; **omit and provide no `tpl.config.json` to skip topic
+  validation and use the default id format.**
 - `--packages-root` — directory whose immediate subdirectories are the allowed
   values for `scope.packages`. Omit to skip that check (non-monorepo repos).
 
