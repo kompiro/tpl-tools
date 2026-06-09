@@ -1,6 +1,6 @@
 {
   "name": "@kompiro/tpl-tools",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Frontmatter-driven Test Perspective Library (TPL) validator and query tool.",
   "license": "MIT",
   "publishConfig": {
