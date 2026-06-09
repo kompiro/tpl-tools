@@ -1,12 +1,15 @@
 export {
+  CONFIG_FILENAME,
   DEFAULT_ID_FORMAT,
   ID_FORMATS,
   loadReferenceData,
   ReferenceDataInvalidError,
   ReferenceDataMissingError,
+  resolveConfigPath,
   type IdFormat,
   type ReferenceData,
 } from "./config.ts";
+export { runInit, type InitResult } from "./init.ts";
 export {
   formatFinding,
   loadAllTpls,

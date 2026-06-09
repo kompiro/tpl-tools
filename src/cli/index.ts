@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { main as runInit } from "./init.ts";
 import { main as runRelated } from "./related.ts";
 import { main as runReviewBody } from "./review-body.ts";
 import { main as runValidate } from "./validate.ts";
@@ -6,6 +7,7 @@ import { main as runValidate } from "./validate.ts";
 const HELP = `usage: tpl <subcommand> [options]
 
 Subcommands:
+  init           generate a starter tpl.config.json in the target dir (or CWD)
   validate       validate TPL frontmatter, filenames, cross-refs, README index
   related        list active TPLs matching a topic (markdown for Design Docs)
   review-body    print the body for a periodic TPL deprecation-review Issue
@@ -26,6 +28,8 @@ function main(): number {
     case "help":
       process.stdout.write(`${HELP}\n`);
       return 0;
+    case "init":
+      return runInit(subArgv);
     case "validate":
       return runValidate(subArgv);
     case "related":

@@ -24,6 +24,9 @@ jobs:
       - name: Smoke-test built CLI
         run: |
           node dist/cli.js --help
+          mkdir -p /tmp/tpl-smoke
+          node dist/cli.js init /tmp/tpl-smoke
+          test -f /tmp/tpl-smoke/tpl.config.json
           node dist/cli.js validate --tpl-dir test/fixtures/tpl --config test/fixtures/reference-data.json
           node dist/cli.js related testing --tpl-dir test/fixtures/tpl
           node dist/cli.js review-body --tpl-dir test/fixtures/tpl --repo kompiro/example > /dev/null

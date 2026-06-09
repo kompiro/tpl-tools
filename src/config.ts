@@ -1,4 +1,22 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+/** Default reference-data filename looked up in the working directory. */
+export const CONFIG_FILENAME = "tpl.config.json";
+
+/**
+ * Decide which reference-data file to load, given an optional explicit path:
+ *   1. an explicit `--config` path (highest priority — keeps back-compat with
+ *      a shared file such as `adr.config.json`)
+ *   2. `tpl.config.json` in `cwd`, when present (lets tpl be used standalone)
+ *   3. `undefined` — no file; topic validation is skipped and the default id
+ *      format is used
+ */
+export function resolveConfigPath(explicit: string | undefined, cwd: string): string | undefined {
+  if (explicit !== undefined) return resolve(cwd, explicit);
+  const fallback = resolve(cwd, CONFIG_FILENAME);
+  return existsSync(fallback) ? fallback : undefined;
+}
 
 /**
  * TPL id / filename convention:

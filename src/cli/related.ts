@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadReferenceData } from "../config.ts";
+import { CONFIG_FILENAME, loadReferenceData, resolveConfigPath } from "../config.ts";
 import { findRelated, formatRelatedAsMarkdown } from "../related.ts";
 import { loadAllTpls } from "../validate.ts";
 import { parseFlags } from "./args.ts";
@@ -14,7 +14,8 @@ Options:
   --package <pkg>      Also require <pkg> in scope.packages
   --tpl-dir <path>     TPL directory (default: docs/test-perspectives)
   --config <path>      JSON file holding a "topics" array; used only to warn
-                       when <topic> is outside the controlled vocabulary
+                       when <topic> is outside the controlled vocabulary.
+                       Defaults to ${CONFIG_FILENAME} in CWD when present.
   --path-prefix <p>    Prefix for links in the output (default: docs/test-perspectives/)
   -h, --help           Show this help`;
 
@@ -47,10 +48,11 @@ export function main(argv: readonly string[]): number {
     return 2;
   }
 
-  if (parsed.options.has("config")) {
+  const cfgPath = resolveConfigPath(parsed.options.get("config"), cwd);
+  if (cfgPath !== undefined) {
     let topics: readonly string[];
     try {
-      topics = loadReferenceData(resolve(cwd, parsed.options.get("config")!)).topics;
+      topics = loadReferenceData(cfgPath).topics;
     } catch (e) {
       process.stderr.write(`error: ${(e as Error).message}\n`);
       return 2;

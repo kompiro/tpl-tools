@@ -44,4 +44,5 @@ jobs:
             dist/bin/tpl-darwin-arm64
             dist/bin/tpl-windows-x64.exe
             dist/bin/SHA256SUMS
+            src/config.schema.json
           fail_on_unmatched_files: true
