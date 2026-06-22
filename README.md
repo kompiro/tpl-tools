@@ -11,15 +11,9 @@ deprecation-review issue.
 
 ## Install
 
-Published to GitHub Packages under the `@kompiro` scope:
+Published to the **public npm registry**:
 
-```
-# .npmrc
-@kompiro:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
-```
-
-```
+```sh
 pnpm add -D @kompiro/tpl-tools
 ```
 
@@ -35,12 +29,8 @@ curl -fsSL https://raw.githubusercontent.com/kompiro/tpl-tools/main/install.sh |
 
 The script detects your OS/arch, downloads the matching binary, verifies its
 SHA256, and installs it to `~/.local/bin/tpl`. Override with `TPL_VERSION`
-(release tag) or `INSTALL_DIR`.
-
-While this repository is private, downloading requires authentication: install
-the [GitHub CLI](https://cli.github.com/) and run `gh auth login` (preferred),
-or set `GITHUB_TOKEN` (the curl fallback also needs `jq`). In a devcontainer,
-add the one-liner above as a `RUN` step in your `Dockerfile` — alongside the
+(release tag) or `INSTALL_DIR`. In a devcontainer, add the one-liner above as a
+`RUN` step in your `Dockerfile` — alongside the
 [adr-tools](https://github.com/kompiro/adr-tools) installer if you use both.
 
 ## CLI
