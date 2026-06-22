@@ -10,21 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      # OIDC token for npm Trusted Publishing; also signs the provenance attestation.
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+      # No `registry-url` / `scope` on setup-node: it would write an .npmrc with a
+      # dummy `_authToken`, which suppresses the OIDC token exchange (publish then
+      # fails with a masked 404). Registry is pinned via `publishConfig.registry`
+      # in package.json.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-          registry-url: https://npm.pkg.github.com
-          scope: "@kompiro"
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
       - run: pnpm run lint
       - run: pnpm run test
       - run: pnpm run build
-      - run: pnpm publish --no-git-checks --access restricted
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Publish with the npm CLI, not pnpm: npm Trusted Publishing's OIDC -> npm
+      # token exchange is implemented in npm >= 11.5.1. pnpm 10.x does not perform
+      # the exchange (publish fails with ENEEDAUTH) and pnpm 11.x has a known
+      # regression (pnpm/pnpm#11513). Node 22 ships npm 10.x, so upgrade first.
+      # tpl-tools is a single package (no workspace protocol), so `npm publish`
+      # needs no `workspace:*` rewriting. With no authToken in .npmrc, npm uses
+      # the GitHub OIDC token and attaches provenance automatically.
+      - run: npm install -g npm@latest
+      - run: npm publish --provenance --access public
