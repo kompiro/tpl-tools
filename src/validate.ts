@@ -48,6 +48,7 @@ export type Finding =
   | { kind: "discovered-from-empty"; file: string }
   | { kind: "discovered-from-unknown-key"; file: string; key: string }
   | { kind: "related-to-dangling"; file: string; ref: string }
+  | { kind: "duplicate-id"; id: string; files: string[] }
   | { kind: "scope-package-missing"; file: string; pkg: string }
   | { kind: "deprecated-no-rationale"; file: string }
   | { kind: "readme-missing-row"; tplId: string }
@@ -265,6 +266,28 @@ export function validateFile(
 // Cross-file checks
 // ---------------------------------------------------------------------------
 
+/**
+ * Every id must be claimed by exactly one file. Ids minted on concurrent
+ * branches can collide (e.g. `date-sequence` derives NN from what exists on
+ * the branch), and per-file checks cannot see that — each file agrees with
+ * itself. This check fires once both files are in the same tree.
+ */
+export function validateUniqueIds(parsed: readonly ParsedTpl[]): Finding[] {
+  const filesById = new Map<string, string[]>();
+  for (const p of parsed) {
+    const files = filesById.get(p.fm.id);
+    if (files) files.push(p.file);
+    else filesById.set(p.fm.id, [p.file]);
+  }
+  const findings: Finding[] = [];
+  for (const [id, files] of filesById) {
+    if (files.length > 1) {
+      findings.push({ kind: "duplicate-id", id, files });
+    }
+  }
+  return findings;
+}
+
 export function validateRelatedTo(parsed: readonly ParsedTpl[]): Finding[] {
   const ids = new Set(parsed.map((p) => p.fm.id));
   const findings: Finding[] = [];
@@ -384,6 +407,7 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
     if (result.parsed) parsed.push(result.parsed);
   }
 
+  findings.push(...validateUniqueIds(parsed));
   findings.push(...validateRelatedTo(parsed));
 
   if (opts.readmePath && existsSync(opts.readmePath)) {
@@ -423,6 +447,8 @@ export function formatFinding(f: Finding): string {
       return `${f.file}: discovered_from has unknown key "${f.key}"`;
     case "related-to-dangling":
       return `${f.file}: related_to references unknown TPL "${f.ref}"`;
+    case "duplicate-id":
+      return `id ${f.id} is claimed by ${f.files.length} files: ${f.files.join(", ")}`;
     case "scope-package-missing":
       return `${f.file}: scope.packages references missing package "${f.pkg}"`;
     case "deprecated-no-rationale":

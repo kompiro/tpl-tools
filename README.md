@@ -84,6 +84,13 @@ tpl validate [--tpl-dir <path>] [--config <path>] [--packages-root <path>]
 
 Exit code `0` = clean, `1` = findings, `2` = usage / I/O error.
 
+Checks are per-file (frontmatter shape, filename ↔ id, controlled
+vocabularies) and cross-file (id uniqueness, `related_to` resolution, README
+index consistency). The id-uniqueness check exists because ids minted on
+concurrent branches can collide — e.g. two branches created the same day both
+see `TPL-YYYYMMDD-01` as free — and each file is internally consistent, so
+only a cross-file view detects it once both files land in one tree.
+
 #### `idFormat`
 
 The config JSON may include an `idFormat` field that selects the TPL id and

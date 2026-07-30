@@ -1,3 +1,5 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadReferenceData } from "../src/config.ts";
@@ -10,6 +12,7 @@ import {
   validateFile,
   validateReadmeIndex,
   validateRelatedTo,
+  validateUniqueIds,
 } from "../src/validate.ts";
 
 // ---------------------------------------------------------------------------
@@ -251,6 +254,71 @@ describe("related_to dangling check", () => {
       tpl({ id: "TPL-20260510-02" }),
     ]);
     expect(findings).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-file: duplicate id
+// ---------------------------------------------------------------------------
+
+describe("duplicate id check", () => {
+  it("flags two files claiming the same id", () => {
+    const findings = validateUniqueIds([
+      { ...tpl({ id: "TPL-20260730-01" }), file: "TPL-20260730-01-first.md" },
+      { ...tpl({ id: "TPL-20260730-01" }), file: "TPL-20260730-01-second.md" },
+    ]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toEqual({
+      kind: "duplicate-id",
+      id: "TPL-20260730-01",
+      files: ["TPL-20260730-01-first.md", "TPL-20260730-01-second.md"],
+    });
+  });
+
+  it("passes when every id is unique", () => {
+    const findings = validateUniqueIds([
+      tpl({ id: "TPL-20260730-01" }),
+      tpl({ id: "TPL-20260730-02" }),
+    ]);
+    expect(findings).toEqual([]);
+  });
+
+  it("reports one finding per duplicated id, listing all claimants", () => {
+    const findings = validateUniqueIds([
+      { ...tpl({ id: "TPL-20260730-01" }), file: "a.md" },
+      { ...tpl({ id: "TPL-20260730-01" }), file: "b.md" },
+      { ...tpl({ id: "TPL-20260730-01" }), file: "c.md" },
+    ]);
+    expect(findings).toHaveLength(1);
+    expect((findings[0] as { files: string[] }).files).toEqual(["a.md", "b.md", "c.md"]);
+  });
+
+  it("validateAll surfaces the collision when both files are in one tree", () => {
+    const dir = mkdtempSync(join(tmpdir(), "tpl-dup-"));
+    try {
+      // The concurrent-branch race: each file is internally consistent, so
+      // per-file checks pass; only the cross-file view can see the collision.
+      writeFileSync(
+        join(dir, "TPL-20260730-01-first-perspective.md"),
+        makeFm({ id: "TPL-20260730-01" }),
+      );
+      writeFileSync(
+        join(dir, "TPL-20260730-01-second-perspective.md"),
+        makeFm({ id: "TPL-20260730-01" }),
+      );
+      const { findings } = validateAll({
+        tplDir: dir,
+        validTopics: VALID_TOPICS,
+        validPackages: null,
+      });
+      expect(findingKinds(findings)).toEqual(["duplicate-id"]);
+      expect(formatFinding(findings[0])).toBe(
+        "id TPL-20260730-01 is claimed by 2 files: " +
+          "TPL-20260730-01-first-perspective.md, TPL-20260730-01-second-perspective.md",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

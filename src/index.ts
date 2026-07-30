@@ -18,6 +18,7 @@ export {
   validateFile,
   validateReadmeIndex,
   validateRelatedTo,
+  validateUniqueIds,
   type Finding,
   type Frontmatter,
   type ParsedTpl,
