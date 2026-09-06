@@ -21,7 +21,14 @@ export interface ReviewBodyOptions {
   repo: string;
   /** Repo-root relative path to the TPL directory, for blob links and prose. */
   tplDirRelative?: string;
-  /** Override "now" (mainly for tests). */
+  /**
+   * Period named in the heading, e.g. `2026-09` for a monthly cadence. Callers
+   * that title the Issue themselves should pass the same string here, so the
+   * body does not claim a different period than the Issue it belongs to.
+   * Defaults to the ISO week of `now`.
+   */
+  periodLabel?: string;
+  /** Override "now", used for the default period label (mainly for tests). */
   now?: Date;
 }
 
@@ -52,7 +59,7 @@ function listActiveTpls(tplDir: string): ActiveTpl[] {
 export function renderReviewBody(opts: ReviewBodyOptions): string {
   const tplDirRelative = opts.tplDirRelative ?? "docs/test-perspectives";
   const active = listActiveTpls(opts.tplDir);
-  const periodLabel = isoWeekLabel(opts.now ?? new Date());
+  const periodLabel = opts.periodLabel ?? isoWeekLabel(opts.now ?? new Date());
   const fileBaseUrl = `https://github.com/${opts.repo}/blob/main/${tplDirRelative}`;
   const readmePath = `${tplDirRelative}/README.md`;
 

@@ -1,5 +1,6 @@
 import { join, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { main as reviewBodyCli } from "../src/cli/review-body.ts";
 import { renderReviewBody } from "../src/review-body.ts";
 
 const TPL_DIR = join(resolve(__dirname, "fixtures"), "tpl");
@@ -48,5 +49,60 @@ describe("renderReviewBody", () => {
     );
     expect(issueBody).not.toContain("TPL-43");
     expect(issueBody).not.toContain("_No active TPLs");
+  });
+
+  it("uses an explicit period label instead of the ISO week", () => {
+    const monthly = renderReviewBody({
+      tplDir: TPL_DIR,
+      repo: "kompiro/example",
+      periodLabel: "2026-08",
+      // `now` would yield 2026-W19; the explicit label must win so the body
+      // agrees with the Issue title the caller writes.
+      now: new Date(Date.UTC(2026, 4, 7)),
+    });
+    expect(monthly).toMatch(/^# TPL deprecation review — 2026-08\n/);
+    expect(monthly).not.toContain("2026-W19");
+  });
+});
+
+describe("review-body CLI", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function run(args: string[]): { code: number; out: string; err: string } {
+    let out = "";
+    let err = "";
+    vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+      out += String(chunk);
+      return true;
+    });
+    vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+      err += String(chunk);
+      return true;
+    });
+    const code = reviewBodyCli(["node", "tpl", ...args]);
+    return { code, out, err };
+  }
+
+  const BASE = ["--tpl-dir", TPL_DIR, "--repo", "kompiro/example"];
+
+  it("passes --period-label through to the heading", () => {
+    const { code, out } = run([...BASE, "--period-label", "2026-08"]);
+    expect(code).toBe(0);
+    expect(out).toMatch(/^# TPL deprecation review — 2026-08\n/);
+  });
+
+  it("falls back to the ISO week when no label is given", () => {
+    const { code, out } = run(BASE);
+    expect(code).toBe(0);
+    expect(out).toMatch(/^# TPL deprecation review — \d{4}-W\d{2}\n/);
+  });
+
+  it("rejects a blank --period-label instead of emitting a bare dash", () => {
+    const { code, out, err } = run([...BASE, "--period-label", "   "]);
+    expect(code).toBe(2);
+    expect(out).toBe("");
+    expect(err).toContain("--period-label requires a non-empty label");
   });
 });

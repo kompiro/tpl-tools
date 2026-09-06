@@ -126,11 +126,22 @@ into a Design Doc's "Related TPLs" section.
 
 ```
 tpl review-body [--tpl-dir <path>] [--repo <owner/repo>] [--tpl-dir-relative <p>]
+                [--period-label <label>]
 ```
 
 Prints the markdown body for a periodic TPL deprecation-review issue to stdout
 (`--repo` defaults to `$GITHUB_REPOSITORY`). Typically piped into
 `gh issue create --body-file -`.
+
+The heading names the review period. It defaults to the current ISO week
+(`2026-W36`), which suits a weekly cadence; on any other cadence pass
+`--period-label` so the body and the Issue title agree:
+
+```sh
+label=$(date -u +%Y-%m)
+tpl review-body --period-label "$label" > body.md
+gh issue create --title "TPL deprecation review — $label" --body-file body.md
+```
 
 ## Reference templates
 

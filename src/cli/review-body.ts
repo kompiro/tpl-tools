@@ -12,9 +12,11 @@ Options:
   --repo <owner/repo>       Repo for blob links (default: $GITHUB_REPOSITORY)
   --tpl-dir-relative <p>    Repo-root relative TPL path used in links/prose
                             (default: docs/test-perspectives)
+  --period-label <label>    Period named in the heading, e.g. 2026-09. Pass the
+                            same label the Issue title uses (default: ISO week)
   -h, --help                Show this help`;
 
-const VALUE_FLAGS = new Set(["tpl-dir", "repo", "tpl-dir-relative"]);
+const VALUE_FLAGS = new Set(["tpl-dir", "repo", "tpl-dir-relative", "period-label"]);
 
 export function main(argv: readonly string[]): number {
   let parsed: ReturnType<typeof parseFlags>;
@@ -43,6 +45,12 @@ export function main(argv: readonly string[]): number {
     return 2;
   }
 
-  process.stdout.write(renderReviewBody({ tplDir, repo, tplDirRelative }));
+  const periodLabel = parsed.options.get("period-label");
+  if (periodLabel !== undefined && periodLabel.trim() === "") {
+    process.stderr.write("error: --period-label requires a non-empty label\n");
+    return 2;
+  }
+
+  process.stdout.write(renderReviewBody({ tplDir, repo, tplDirRelative, periodLabel }));
   return 0;
 }
