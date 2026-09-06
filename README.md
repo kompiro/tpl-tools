@@ -134,7 +134,7 @@ Prints the markdown body for a periodic TPL deprecation-review issue to stdout
 `gh issue create --body-file -`.
 
 The heading names the review period. It defaults to the current ISO week
-(`2026-W36`), which suits a weekly cadence; on any other cadence pass
+(`YYYY-Www`), which suits a weekly cadence; on any other cadence pass
 `--period-label` so the body and the Issue title agree:
 
 ```sh
