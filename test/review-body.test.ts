@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { renderReviewBody } from "../src/review-body.ts";
 
 const TPL_DIR = join(resolve(__dirname, "fixtures"), "tpl");
+const ISSUE_NUMBER_DIR = join(resolve(__dirname, "fixtures"), "tpl-issue-number");
 
 describe("renderReviewBody", () => {
   const body = renderReviewBody({
@@ -33,5 +34,19 @@ describe("renderReviewBody", () => {
       "https://github.com/kompiro/example/blob/main/perspectives/TPL-20260101-01-alpha.md",
     );
     expect(custom).toContain("`perspectives/`");
+  });
+
+  it("lists issue-number ids, not only date-sequence ones", () => {
+    const issueBody = renderReviewBody({
+      tplDir: ISSUE_NUMBER_DIR,
+      repo: "kompiro/example",
+      now: new Date(Date.UTC(2026, 7, 25)),
+    });
+    expect(issueBody).toContain("## Active TPLs (1)");
+    expect(issueBody).toContain(
+      "- [ ] [TPL-42](https://github.com/kompiro/example/blob/main/docs/test-perspectives/TPL-42-gamma.md) — gamma perspective _(topic: `testing`)_",
+    );
+    expect(issueBody).not.toContain("TPL-43");
+    expect(issueBody).not.toContain("_No active TPLs");
   });
 });
