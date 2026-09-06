@@ -5,9 +5,7 @@
 // and a disposition legend. A scheduled workflow typically pipes this into
 // `gh issue create --body-file -`.
 
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { type Frontmatter, parseFrontmatter } from "./validate.ts";
+import { loadAllTpls } from "./validate.ts";
 
 interface ActiveTpl {
   id: string;
@@ -38,20 +36,15 @@ function isoWeekLabel(d: Date): string {
 }
 
 function listActiveTpls(tplDir: string): ActiveTpl[] {
-  const entries = readdirSync(tplDir)
-    .filter((f) => /^TPL-\d{8}-\d{2}-.+\.md$/.test(f))
-    .sort();
+  // Reuse the validator's file listing so every id format the validator
+  // accepts (date-sequence and issue-number alike) is reviewed. A private
+  // filename regex here once matched only `TPL-YYYYMMDD-NN-*.md`, so a
+  // corpus migrated to issue-number ids produced an empty review Issue.
   const active: ActiveTpl[] = [];
-  for (const file of entries) {
-    const content = readFileSync(join(tplDir, file), "utf8");
-    const { fm } = parseFrontmatter(content);
-    if (!fm || typeof fm !== "object") continue;
-    const f = fm as Partial<Frontmatter>;
-    if (f.status !== "active") continue;
-    if (typeof f.id !== "string" || typeof f.title !== "string" || typeof f.topic !== "string") {
-      continue;
-    }
-    active.push({ id: f.id, title: f.title, topic: f.topic, file });
+  for (const { file, fm } of loadAllTpls(tplDir)) {
+    if (fm.status !== "active") continue;
+    if (typeof fm.title !== "string" || typeof fm.topic !== "string") continue;
+    active.push({ id: fm.id, title: fm.title, topic: fm.topic, file });
   }
   return active;
 }
