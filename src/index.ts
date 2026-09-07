@@ -26,3 +26,13 @@ export {
 } from "./validate.ts";
 export { findRelated, formatRelatedAsMarkdown } from "./related.ts";
 export { renderReviewBody, type ReviewBodyOptions } from "./review-body.ts";
+export {
+  ABSENT_PATH_MARKER,
+  GENERATED_SEGMENTS,
+  absentPathReason,
+  candidatePath,
+  checkSourcePaths,
+  sourcePathsInLine,
+  type SourcePathFinding,
+  type SourcePathFindingKind,
+} from "./source-paths.ts";
