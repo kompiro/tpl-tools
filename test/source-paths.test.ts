@@ -175,10 +175,42 @@ describe("checkSourcePaths", () => {
   });
 
   it("does not open a fence on a paragraph containing a backtick run and a span", () => {
-    // ```lang`x is not a fence opener — a backtick fence's info string may not
+    // ```lang`x is not a fence opener: a backtick fence's info string may not
     // contain a backtick. Opening one would silence the rest of the document.
-    const md = ["```md`x", "`packages/core/src/gone.ts`"].join("\n");
+    // The blank line is load-bearing. Without it the stray backtick pairs with
+    // the one before the path, which is what CommonMark does with that
+    // paragraph, and the path is then not in a span at all.
+    const md = ["```md`x", "", "`packages/core/src/gone.ts`"].join("\n");
     expect(check(md).map((f) => f.kind)).toContain("body-source-path-missing");
+  });
+
+  it("reads a code span that wraps onto the next line as one span", () => {
+    // The path sits inside the wrapped span, so the record names no path of
+    // its own here. Reading each line alone would take the second half for a
+    // span and report one.
+    const md = ["`` a span that wraps", "`packages/core/src/gone.ts` and ends here ``"];
+    expect(check(md.join("\n"))).toEqual([]);
+  });
+
+  it("ends a span at the paragraph, so an unclosed run silences nothing", () => {
+    const md = ["`` unclosed run", "", "`packages/core/src/gone.ts`"];
+    expect(check(md.join("\n"))).toEqual([
+      { kind: "body-source-path-missing", line: 3, path: "packages/core/src/gone.ts" },
+    ]);
+  });
+
+  it("ends a nested quote's fence when the document returns to the outer quote", () => {
+    const md = ["> > ```sh", "> > echo hi", "> `packages/core/src/gone.ts`"];
+    expect(check(md.join("\n"))).toEqual([
+      { kind: "body-source-path-missing", line: 3, path: "packages/core/src/gone.ts" },
+    ]);
+  });
+
+  it("does not close a fence on a delimiter one quote deeper", () => {
+    // Once the fence's own `>` comes off, the delimiter still carries one, so
+    // it is content rather than the close.
+    const md = ["> ```sh", "> > ```", "> cat `packages/core/src/gone.ts`", "> ```"];
+    expect(check(md.join("\n"))).toEqual([]);
   });
 
   describe("the absent-path declaration", () => {
@@ -228,10 +260,10 @@ describe("checkSourcePaths", () => {
       // ```md`x is a paragraph, not a fence. The declaration reaches it and
       // finds no absent path there, so it is unused rather than held over for
       // the line below.
-      const md = [marker("history"), "```md`x", "`packages/core/src/gone.ts`"];
+      const md = [marker("history"), "```md`x", "", "`packages/core/src/gone.ts`"];
       expect(check(md.join("\n"))).toEqual([
         { kind: "absent-path-marker-unused", line: 1, path: "" },
-        { kind: "body-source-path-missing", line: 3, path: "packages/core/src/gone.ts" },
+        { kind: "body-source-path-missing", line: 4, path: "packages/core/src/gone.ts" },
       ]);
     });
 

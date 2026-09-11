@@ -64,10 +64,10 @@ const BACKTICK_RUN_RE = /`+/g;
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 
 /**
- * A block-quote prefix. A fence inside a quote is still a fence, so the `>`
+ * One block-quote marker. A fence inside a quote is still a fence, so the
  * markers come off before a line is read as one.
  */
-const QUOTE_PREFIX_RE = /^ {0,3}(?:> ?)+/;
+const QUOTE_MARKER_RE = /^ {0,3}> ?/;
 
 /** One path segment. No separator, so a span is split before this is applied. */
 const SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
@@ -103,35 +103,49 @@ export function candidatePath(span: string, prefixes: ReadonlySet<string>): stri
   return trimmed;
 }
 
+interface CodeSpan {
+  /** The span's content, padding stripped. */
+  content: string;
+  /** Offset of the content in the text the span was found in. */
+  index: number;
+}
+
 /**
- * The contents of every inline code span on one line, by CommonMark's rule: a
- * run of n backticks is closed by the next run of exactly n, and a run with no
- * such partner is literal text that the scan continues past.
+ * Every inline code span in a run of text, by CommonMark's rule: a run of n
+ * backticks is closed by the next run of exactly n, and a run with no such
+ * partner is literal text that the scan continues past.
  *
  * The run length matters to this check in both directions. A record writes a
- * path holding a backtick-quoted thing as `` `…` ``, and reading only single
- * backticks both loses that span's padding spaces (a missed dead path) and can
- * take the inner backticks for delimiters of their own (a path matched out of
- * text that is not one).
+ * path holding a backtick-quoted thing in a longer run of backticks, and
+ * reading only single ones both loses that span's padding spaces (a missed
+ * dead path) and can take the inner backticks for delimiters of their own (a
+ * path matched out of text that names none).
+ *
+ * The text is a whole paragraph rather than a line, because a span closes on a
+ * later line as readily as on its own. Feeding lines in one at a time is what
+ * makes the second half of a wrapped span look like a span of its own.
  *
  * Backslash escapes are not honoured. `\` cannot appear in a candidate path, so
  * an escaped backtick can only merge a span into something that is no longer a
  * path end to end, which is the side that under-reports.
  */
-function inlineCodeSpans(line: string): string[] {
+function inlineCodeSpans(text: string): CodeSpan[] {
   const runs: { start: number; end: number }[] = [];
   BACKTICK_RUN_RE.lastIndex = 0;
-  for (let m = BACKTICK_RUN_RE.exec(line); m !== null; m = BACKTICK_RUN_RE.exec(line)) {
+  for (let m = BACKTICK_RUN_RE.exec(text); m !== null; m = BACKTICK_RUN_RE.exec(text)) {
     runs.push({ start: m.index, end: m.index + m[0].length });
   }
 
-  const spans: string[] = [];
+  const spans: CodeSpan[] = [];
   for (let i = 0; i < runs.length; i++) {
     const open = runs[i];
     const length = open.end - open.start;
     const close = runs.findIndex((r, j) => j > i && r.end - r.start === length);
     if (close === -1) continue;
-    spans.push(stripPadding(line.slice(open.end, runs[close].start)));
+    spans.push({
+      content: stripPadding(text.slice(open.end, runs[close].start)),
+      index: open.end,
+    });
     // What stood between the two runs was code, so no run inside it can open a
     // span of its own.
     i = close;
@@ -153,11 +167,15 @@ function stripPadding(content: string): string {
   return padded ? content.slice(1, -1) : content;
 }
 
-/** Every source path named by a code span on one line of Markdown. */
+/**
+ * Every source path named by a code span on one line of Markdown, read in
+ * isolation. `checkSourcePaths` reads a paragraph at a time instead, since a
+ * span can wrap; this stays for a caller that has one line and nothing else.
+ */
 export function sourcePathsInLine(line: string, prefixes: ReadonlySet<string>): string[] {
   const paths: string[] = [];
   for (const span of inlineCodeSpans(line)) {
-    const path = candidatePath(span, prefixes);
+    const path = candidatePath(span.content, prefixes);
     if (path !== undefined) paths.push(path);
   }
   return paths;
@@ -169,15 +187,134 @@ export function absentPathReason(line: string): string | undefined {
   return m === null ? undefined : m[1].trim();
 }
 
+/** Where the content after each block-quote marker starts, `0` first, so the
+ * last index is the line's quote depth. */
+function quoteOffsets(line: string): number[] {
+  const offsets = [0];
+  for (;;) {
+    const m = QUOTE_MARKER_RE.exec(line.slice(offsets[offsets.length - 1]));
+    if (m === null) return offsets;
+    offsets.push(offsets[offsets.length - 1] + m[0].length);
+  }
+}
+
+/** What the line-by-line pass needs to know about each line of a document. */
+interface ScannedLines {
+  /** Frontmatter, a fence delimiter, or fenced content: not the record's prose. */
+  skipped: boolean[];
+  /** Paths named on the line that are not in the working tree. */
+  missing: string[][];
+}
+
+/**
+ * Read a document's prose paragraph by paragraph and collect, per line, the
+ * paths it names that do not resolve.
+ *
+ * Two regions are left out. YAML frontmatter is validated by the frontmatter
+ * rules and carries stand-in names (`applicable_to` says things like
+ * `packages/foo`), and a fenced block holds commands and transcripts rather
+ * than the record's own claims.
+ */
+function scanLines(
+  lines: readonly string[],
+  prefixes: ReadonlySet<string>,
+  repoRoot: string,
+): ScannedLines {
+  const skipped = lines.map(() => false);
+  const missing = lines.map((): string[] => []);
+  let inFrontmatter = lines[0]?.trim() === "---";
+  let openFence: { delim: string; depth: number } | undefined;
+  let paragraph: { text: string; index: number }[] = [];
+
+  /** A paragraph is the unit a span may wrap inside, so it is read as a whole. */
+  const flushParagraph = (): void => {
+    if (paragraph.length === 0) return;
+    const text = paragraph.map((l) => l.text).join("\n");
+    const starts: number[] = [];
+    let at = 0;
+    for (const l of paragraph) {
+      starts.push(at);
+      at += l.text.length + 1;
+    }
+    for (const span of inlineCodeSpans(text)) {
+      const path = candidatePath(span.content, prefixes);
+      if (path === undefined) continue;
+      if (existsSync(resolve(repoRoot, path))) continue;
+      // A path holds no newline, so the span that names one sits on a single
+      // line of the paragraph.
+      let line = 0;
+      while (line + 1 < starts.length && starts[line + 1] <= span.index) line++;
+      missing[paragraph[line].index].push(path);
+    }
+    paragraph = [];
+  };
+
+  lines.forEach((line, index) => {
+    if (inFrontmatter) {
+      skipped[index] = true;
+      if (index > 0 && /^---\s*$/.test(line)) inFrontmatter = false;
+      return;
+    }
+
+    const offsets = quoteOffsets(line);
+    const depth = offsets.length - 1;
+
+    if (openFence !== undefined) {
+      if (depth < openFence.depth) {
+        // The quote that held the fence has closed, and the fence with it, as
+        // it does in CommonMark. That is also what keeps a quoted fence with
+        // no closer from silencing the rest of the document.
+        openFence = undefined;
+      } else {
+        // Inside a fence only a bare delimiter of the same character, at least
+        // as long, and at the fence's own quote depth closes it. CommonMark
+        // gives a closing fence no info string, so ```ts inside a ``` block is
+        // content; so is a delimiter one quote deeper, which still carries a
+        // `>` once the fence's own markers come off.
+        const fence = FENCE_RE.exec(line.slice(offsets[openFence.depth]));
+        const closes =
+          fence !== null &&
+          fence[1][0] === openFence.delim[0] &&
+          fence[1].length >= openFence.delim.length &&
+          fence[2].trim() === "";
+        skipped[index] = true;
+        if (closes) openFence = undefined;
+        return;
+      }
+    }
+
+    const content = line.slice(offsets[depth]);
+    const fence = FENCE_RE.exec(content);
+    // A backtick fence's info string may not contain a backtick, so ```lang`x
+    // opens nothing: it is a paragraph holding an inline span, and is read as
+    // one below. Opening a phantom fence on it would silence the rest of the
+    // document.
+    if (fence !== null && !(fence[1][0] === "`" && fence[2].includes("`"))) {
+      flushParagraph();
+      skipped[index] = true;
+      openFence = { delim: fence[1], depth };
+      return;
+    }
+
+    // A blank line ends a paragraph, and so does the declaration, which is an
+    // HTML block rather than prose. Neither can hold a path of its own.
+    if (content.trim() === "" || MARKER_RE.test(line)) {
+      flushParagraph();
+      return;
+    }
+    paragraph.push({ text: line, index });
+  });
+
+  flushParagraph();
+  return { skipped, missing };
+}
+
 /**
  * Findings for one Markdown document.
  *
  * The **whole body** is scanned, not one section: a path can be named in the
- * 観点 prose or a checklist just as easily as under 関連テスト. Two regions are
- * skipped. YAML frontmatter is validated by the frontmatter rules and carries
- * stand-in names (`applicable_to` says things like `packages/foo`), and a
- * fenced block holds commands and transcripts rather than the record's own
- * claims.
+ * 観点 prose or a checklist just as easily as under 関連テスト. What is left out
+ * is frontmatter and fenced blocks (see `scanLines`).
  *
  * `repoRoot` is the directory every path resolves against, which the CLI sets
  * to the working directory.
@@ -191,8 +328,7 @@ export function checkSourcePaths(
 
   const findings: SourcePathFinding[] = [];
   const lines = markdown.split("\n");
-  let inFrontmatter = lines[0]?.trim() === "---";
-  let openFence: { delim: string; quoted: boolean } | undefined;
+  const { skipped, missing } = scanLines(lines, prefixes, repoRoot);
   let pendingMarker: { line: number } | undefined;
 
   /** The pending declaration turned out to stand for nothing. */
@@ -204,50 +340,11 @@ export function checkSourcePaths(
   lines.forEach((line, index) => {
     const lineNumber = index + 1;
 
-    if (inFrontmatter) {
-      if (index > 0 && /^---\s*$/.test(line)) inFrontmatter = false;
-      return;
-    }
-
-    const quotePrefix = QUOTE_PREFIX_RE.exec(line)?.[0] ?? "";
-    const quoted = quotePrefix !== "";
-
-    if (openFence !== undefined) {
-      if (openFence.quoted && !quoted) {
-        // Leaving the block quote ends the fence it held, as it does in
-        // CommonMark. That is also what keeps a quoted fence with no closer
-        // from silencing the rest of the document; this line is then read as
-        // the ordinary Markdown it is.
-        openFence = undefined;
-      } else {
-        // Inside a fence only a bare delimiter of the same character, and at
-        // least as long, closes it. CommonMark gives a closing fence no info
-        // string, so ```ts inside a ``` block is content rather than the close.
-        // An unquoted fence is matched raw, so a quoted line inside it stays
-        // content.
-        const fence = FENCE_RE.exec(openFence.quoted ? line.slice(quotePrefix.length) : line);
-        const closes =
-          fence !== null &&
-          fence[1][0] === openFence.delim[0] &&
-          fence[1].length >= openFence.delim.length &&
-          fence[2].trim() === "";
-        if (closes) openFence = undefined;
-        return;
-      }
-    }
-
-    const fence = FENCE_RE.exec(line.slice(quotePrefix.length));
-    // A backtick fence's info string may not contain a backtick, so ```lang`x
-    // opens nothing: it is a paragraph holding an inline span, and is read as
-    // one below. Opening a phantom fence on it would silence the rest of the
-    // document, and returning early would hand its pending declaration to a
-    // later line.
-    if (fence !== null && !(fence[1][0] === "`" && fence[2].includes("`"))) {
+    if (skipped[index]) {
       // A declaration reaches the next line only, so one sitting on a fence
       // opener stands for nothing.
       reportUnusedMarker();
       pendingMarker = undefined;
-      openFence = { delim: fence[1], quoted };
       return;
     }
 
@@ -258,7 +355,7 @@ export function checkSourcePaths(
       reportUnusedMarker();
       pendingMarker = undefined;
       if (reason === "") {
-        // An invalid declaration earns no suppression — the next line is
+        // An invalid declaration earns no suppression: the next line is
         // checked normally, so a dead path behind it stays reported.
         findings.push({ kind: "absent-path-marker-empty-reason", line: lineNumber, path: "" });
       } else {
@@ -267,17 +364,13 @@ export function checkSourcePaths(
       return;
     }
 
-    const missing = sourcePathsInLine(line, prefixes).filter(
-      (path) => !existsSync(resolve(repoRoot, path)),
-    );
-
     if (pendingMarker !== undefined) {
-      if (missing.length === 0) reportUnusedMarker();
+      if (missing[index].length === 0) reportUnusedMarker();
       pendingMarker = undefined;
       return;
     }
 
-    for (const path of missing) {
+    for (const path of missing[index]) {
       findings.push({ kind: "body-source-path-missing", line: lineNumber, path });
     }
   });
