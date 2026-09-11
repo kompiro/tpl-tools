@@ -116,7 +116,7 @@ export function candidatePath(span: string, prefixes: ReadonlySet<string>): stri
  *
  * Backslash escapes are not honoured. `\` cannot appear in a candidate path, so
  * an escaped backtick can only merge a span into something that is no longer a
- * path end to end — the side that under-reports.
+ * path end to end, which is the side that under-reports.
  */
 function inlineCodeSpans(line: string): string[] {
   const runs: { start: number; end: number }[] = [];
@@ -238,7 +238,7 @@ export function checkSourcePaths(
 
     const fence = FENCE_RE.exec(line.slice(quotePrefix.length));
     // A backtick fence's info string may not contain a backtick, so ```lang`x
-    // opens nothing — it is a paragraph holding an inline span, and is read as
+    // opens nothing: it is a paragraph holding an inline span, and is read as
     // one below. Opening a phantom fence on it would silence the rest of the
     // document, and returning early would hand its pending declaration to a
     // later line.
