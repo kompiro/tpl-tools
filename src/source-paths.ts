@@ -52,8 +52,8 @@ export interface SourcePathFinding {
  * would make any document that *describes* the syntax declare something. */
 const MARKER_RE = new RegExp(`^\\s*<!--\\s*${ABSENT_PATH_MARKER}\\s*:([^]*?)-->\\s*$`);
 
-/** Inline code span: `…` (single backtick, no embedded backtick). */
-const INLINE_CODE_RE = /`([^`\n]+)`/g;
+/** A run of backticks, which opens or closes an inline code span. */
+const BACKTICK_RUN_RE = /`+/g;
 
 /**
  * A fence opener or closer: three or more backticks or tildes, indented up to
@@ -62,6 +62,12 @@ const INLINE_CODE_RE = /`([^`\n]+)`/g;
  * fence does not close a ``` one.
  */
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+
+/**
+ * A block-quote prefix. A fence inside a quote is still a fence, so the `>`
+ * markers come off before a line is read as one.
+ */
+const QUOTE_PREFIX_RE = /^ {0,3}(?:> ?)+/;
 
 /** One path segment. No separator, so a span is split before this is applied. */
 const SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
@@ -97,11 +103,61 @@ export function candidatePath(span: string, prefixes: ReadonlySet<string>): stri
   return trimmed;
 }
 
+/**
+ * The contents of every inline code span on one line, by CommonMark's rule: a
+ * run of n backticks is closed by the next run of exactly n, and a run with no
+ * such partner is literal text that the scan continues past.
+ *
+ * The run length matters to this check in both directions. A record writes a
+ * path holding a backtick-quoted thing as `` `…` ``, and reading only single
+ * backticks both loses that span's padding spaces (a missed dead path) and can
+ * take the inner backticks for delimiters of their own (a path matched out of
+ * text that is not one).
+ *
+ * Backslash escapes are not honoured. `\` cannot appear in a candidate path, so
+ * an escaped backtick can only merge a span into something that is no longer a
+ * path end to end — the side that under-reports.
+ */
+function inlineCodeSpans(line: string): string[] {
+  const runs: { start: number; end: number }[] = [];
+  BACKTICK_RUN_RE.lastIndex = 0;
+  for (let m = BACKTICK_RUN_RE.exec(line); m !== null; m = BACKTICK_RUN_RE.exec(line)) {
+    runs.push({ start: m.index, end: m.index + m[0].length });
+  }
+
+  const spans: string[] = [];
+  for (let i = 0; i < runs.length; i++) {
+    const open = runs[i];
+    const length = open.end - open.start;
+    const close = runs.findIndex((r, j) => j > i && r.end - r.start === length);
+    if (close === -1) continue;
+    spans.push(stripPadding(line.slice(open.end, runs[close].start)));
+    // What stood between the two runs was code, so no run inside it can open a
+    // span of its own.
+    i = close;
+  }
+  return spans;
+}
+
+/**
+ * CommonMark strips one space from each end of a span that has both, which is
+ * how a span holds a backtick of its own (`` ` `` ). A span of nothing but
+ * spaces keeps them, and is not a path either way.
+ */
+function stripPadding(content: string): string {
+  const padded =
+    content.length >= 2 &&
+    content.startsWith(" ") &&
+    content.endsWith(" ") &&
+    content.trim() !== "";
+  return padded ? content.slice(1, -1) : content;
+}
+
 /** Every source path named by a code span on one line of Markdown. */
 export function sourcePathsInLine(line: string, prefixes: ReadonlySet<string>): string[] {
   const paths: string[] = [];
-  for (const m of line.matchAll(INLINE_CODE_RE)) {
-    const path = candidatePath(m[1], prefixes);
+  for (const span of inlineCodeSpans(line)) {
+    const path = candidatePath(span, prefixes);
     if (path !== undefined) paths.push(path);
   }
   return paths;
@@ -136,7 +192,7 @@ export function checkSourcePaths(
   const findings: SourcePathFinding[] = [];
   const lines = markdown.split("\n");
   let inFrontmatter = lines[0]?.trim() === "---";
-  let openFence: string | undefined;
+  let openFence: { delim: string; quoted: boolean } | undefined;
   let pendingMarker: { line: number } | undefined;
 
   /** The pending declaration turned out to stand for nothing. */
@@ -153,29 +209,45 @@ export function checkSourcePaths(
       return;
     }
 
-    const fence = FENCE_RE.exec(line);
+    const quotePrefix = QUOTE_PREFIX_RE.exec(line)?.[0] ?? "";
+    const quoted = quotePrefix !== "";
+
     if (openFence !== undefined) {
-      // Inside a fence only a bare delimiter of the same character, and at
-      // least as long, closes it. CommonMark gives a closing fence no info
-      // string, so ```ts inside a ``` block is content rather than the close.
-      const closes =
-        fence !== null &&
-        fence[1][0] === openFence[0] &&
-        fence[1].length >= openFence.length &&
-        fence[2].trim() === "";
-      if (closes) openFence = undefined;
-      return;
+      if (openFence.quoted && !quoted) {
+        // Leaving the block quote ends the fence it held, as it does in
+        // CommonMark. That is also what keeps a quoted fence with no closer
+        // from silencing the rest of the document; this line is then read as
+        // the ordinary Markdown it is.
+        openFence = undefined;
+      } else {
+        // Inside a fence only a bare delimiter of the same character, and at
+        // least as long, closes it. CommonMark gives a closing fence no info
+        // string, so ```ts inside a ``` block is content rather than the close.
+        // An unquoted fence is matched raw, so a quoted line inside it stays
+        // content.
+        const fence = FENCE_RE.exec(openFence.quoted ? line.slice(quotePrefix.length) : line);
+        const closes =
+          fence !== null &&
+          fence[1][0] === openFence.delim[0] &&
+          fence[1].length >= openFence.delim.length &&
+          fence[2].trim() === "";
+        if (closes) openFence = undefined;
+        return;
+      }
     }
-    if (fence !== null) {
-      // A backtick fence's info string may not contain a backtick, so ```lang`x
-      // opens nothing — it is a paragraph holding an inline span. Opening a
-      // phantom fence on it would silence the rest of the document.
-      if (fence[1][0] === "`" && fence[2].includes("`")) return;
+
+    const fence = FENCE_RE.exec(line.slice(quotePrefix.length));
+    // A backtick fence's info string may not contain a backtick, so ```lang`x
+    // opens nothing — it is a paragraph holding an inline span, and is read as
+    // one below. Opening a phantom fence on it would silence the rest of the
+    // document, and returning early would hand its pending declaration to a
+    // later line.
+    if (fence !== null && !(fence[1][0] === "`" && fence[2].includes("`"))) {
       // A declaration reaches the next line only, so one sitting on a fence
       // opener stands for nothing.
       reportUnusedMarker();
       pendingMarker = undefined;
-      openFence = fence[1];
+      openFence = { delim: fence[1], quoted };
       return;
     }
 

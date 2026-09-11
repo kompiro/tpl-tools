@@ -122,4 +122,10 @@ describe("validate CLI --source-prefix", () => {
     expect(run(["--source-prefix", "packages/core"])).toBe(2);
     expect(err).toContain("takes one top-level directory name");
   });
+
+  it("rejects an empty prefix, which would turn the requested check off", () => {
+    writeTpl("- `packages/core/src/gone.ts` covers it");
+    expect(run(["--source-prefix="])).toBe(2);
+    expect(err).toContain("not an empty value");
+  });
 });

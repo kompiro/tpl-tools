@@ -93,6 +93,21 @@ describe("sourcePathsInLine", () => {
   it("finds nothing when no prefix matches", () => {
     expect(sourcePathsInLine("`docs/spec/syntax.md`", PREFIXES)).toEqual([]);
   });
+
+  it("reads a multi-backtick span, padding spaces and all", () => {
+    // `` … `` is how Markdown writes a span next to backticks. Reading only
+    // single backticks left the padding in the candidate, so the path fell out.
+    expect(sourcePathsInLine("`` packages/core/src/gone.ts ``", PREFIXES)).toEqual([
+      "packages/core/src/gone.ts",
+    ]);
+  });
+
+  it("closes a span on a run of its own length, so inner backticks are content", () => {
+    // One span from the first backtick to the last. Pairing backticks left to
+    // right instead would take the middle for a span and name a path the line
+    // does not.
+    expect(sourcePathsInLine("`a``packages/core/src/gone.ts``b`", PREFIXES)).toEqual([]);
+  });
 });
 
 describe("checkSourcePaths", () => {
@@ -145,6 +160,20 @@ describe("checkSourcePaths", () => {
     expect(check(md)).toEqual([]);
   });
 
+  it("does not read a fenced block inside a block quote", () => {
+    const md = ["> ```sh", "> cat `packages/core/src/gone.ts`", "> ```", ""].join("\n");
+    expect(check(md)).toEqual([]);
+  });
+
+  it("ends a quoted fence with the quote, so an unclosed one silences nothing", () => {
+    // The quote holds no closing fence. Leaving it closes the block anyway, as
+    // it does in CommonMark, and the rest of the document is read.
+    const md = ["> ```sh", "> echo hi", "", "`packages/core/src/gone.ts`"].join("\n");
+    expect(check(md)).toEqual([
+      { kind: "body-source-path-missing", line: 4, path: "packages/core/src/gone.ts" },
+    ]);
+  });
+
   it("does not open a fence on a paragraph containing a backtick run and a span", () => {
     // ```lang`x is not a fence opener — a backtick fence's info string may not
     // contain a backtick. Opening one would silence the rest of the document.
@@ -192,6 +221,17 @@ describe("checkSourcePaths", () => {
       const md = [marker("history"), "```sh", "`packages/core/src/gone.ts`", "```"];
       expect(check(md.join("\n"))).toEqual([
         { kind: "absent-path-marker-unused", line: 1, path: "" },
+      ]);
+    });
+
+    it("is spent on a paragraph that only looks like a fence opener", () => {
+      // ```md`x is a paragraph, not a fence. The declaration reaches it and
+      // finds no absent path there, so it is unused rather than held over for
+      // the line below.
+      const md = [marker("history"), "```md`x", "`packages/core/src/gone.ts`"];
+      expect(check(md.join("\n"))).toEqual([
+        { kind: "absent-path-marker-unused", line: 1, path: "" },
+        { kind: "body-source-path-missing", line: 3, path: "packages/core/src/gone.ts" },
       ]);
     });
 

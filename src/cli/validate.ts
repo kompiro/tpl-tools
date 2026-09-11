@@ -76,6 +76,13 @@ export function main(argv: readonly string[]): number {
   // meant to be repeated.
   const sourcePrefixes = parsed.optionsAll.get("source-prefix") ?? [];
   for (const prefix of sourcePrefixes) {
+    // `--source-prefix=` parses as an empty value, which no first path segment
+    // can equal — the check the caller asked for would run over nothing. A
+    // usage error says so rather than reporting a clean corpus.
+    if (prefix === "") {
+      process.stderr.write("error: --source-prefix takes a directory name, not an empty value\n");
+      return 2;
+    }
     if (prefix.includes("/") || prefix.includes("\\")) {
       process.stderr.write(
         `error: --source-prefix takes one top-level directory name, not a path: ${prefix}\n`,
