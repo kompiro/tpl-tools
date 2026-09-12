@@ -103,7 +103,8 @@ illustrative names. Matching is by segment, so `packages-old/foo` does not
 belong to the prefix `packages`. Paths resolve relative to the working
 directory, and a path resolves when it exists as **either a file or a
 directory** — records legitimately name directories. Frontmatter and fenced
-blocks are not read, a fence inside a block quote included; the rest of the body
+blocks are not read, one inside a block quote or a list item included; the rest
+of the body
 is. A span is read the way CommonMark reads one: `` ` `` inside a longer run of
 backticks is content rather than a delimiter, and a span that wraps onto the
 next line is still one span. Build output (`node_modules`,

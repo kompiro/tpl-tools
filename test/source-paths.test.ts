@@ -206,6 +206,11 @@ describe("checkSourcePaths", () => {
     ]);
   });
 
+  it("does not read a fenced block a list item opens on its own line", () => {
+    const md = ["- ```sh", "  cat `packages/core/src/gone.ts`", "  ```"];
+    expect(check(md.join("\n"))).toEqual([]);
+  });
+
   it("does not close a fence on a delimiter one quote deeper", () => {
     // Once the fence's own `>` comes off, the delimiter still carries one, so
     // it is content rather than the close.
@@ -254,6 +259,13 @@ describe("checkSourcePaths", () => {
       expect(check(md.join("\n"))).toEqual([
         { kind: "absent-path-marker-unused", line: 1, path: "" },
       ]);
+    });
+
+    it("is read through a block quote, which is where the path is read too", () => {
+      // The quoted prose below is scanned for paths, so the quoted declaration
+      // has to be honoured; otherwise the record has no way to declare it.
+      const md = [`> ${marker("history")}`, "> `packages/core/src/gone.ts`"];
+      expect(check(md.join("\n"))).toEqual([]);
     });
 
     it("is spent on a paragraph that only looks like a fence opener", () => {

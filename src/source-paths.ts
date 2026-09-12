@@ -69,6 +69,12 @@ const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
  */
 const QUOTE_MARKER_RE = /^ {0,3}> ?/;
 
+/**
+ * A list marker, which can carry a fence opener on its own line (`- ```sh`).
+ * It comes off for the same reason the quote markers do.
+ */
+const LIST_MARKER_RE = /^ {0,3}(?:[-*+]|\d{1,9}[.)]) +/;
+
 /** One path segment. No separator, so a span is split before this is applied. */
 const SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
 
@@ -181,9 +187,16 @@ export function sourcePathsInLine(line: string, prefixes: ReadonlySet<string>): 
   return paths;
 }
 
-/** The declared reason when a line carries the marker, otherwise `undefined`. */
+/**
+ * The declared reason when a line carries the marker, otherwise `undefined`.
+ *
+ * Block-quote markers come off first. Quoted prose is read for paths, so a
+ * quoted declaration has to be read as well; otherwise a record could name a
+ * path inside a quote and have no way to declare it absent.
+ */
 export function absentPathReason(line: string): string | undefined {
-  const m = MARKER_RE.exec(line);
+  const offsets = quoteOffsets(line);
+  const m = MARKER_RE.exec(line.slice(offsets[offsets.length - 1]));
   return m === null ? undefined : m[1].trim();
 }
 
@@ -284,7 +297,7 @@ function scanLines(
     }
 
     const content = line.slice(offsets[depth]);
-    const fence = FENCE_RE.exec(content);
+    const fence = FENCE_RE.exec(content.replace(LIST_MARKER_RE, ""));
     // A backtick fence's info string may not contain a backtick, so ```lang`x
     // opens nothing: it is a paragraph holding an inline span, and is read as
     // one below. Opening a phantom fence on it would silence the rest of the
@@ -298,7 +311,7 @@ function scanLines(
 
     // A blank line ends a paragraph, and so does the declaration, which is an
     // HTML block rather than prose. Neither can hold a path of its own.
-    if (content.trim() === "" || MARKER_RE.test(line)) {
+    if (content.trim() === "" || absentPathReason(line) !== undefined) {
       flushParagraph();
       return;
     }
