@@ -40,6 +40,27 @@ tree, behind a repeatable `--source-prefix <dir>` that is off when unset, and
 let a record declare a path it means to be absent with an
 `absent-path-next-line` marker that carries a reason.
 
+## The declaration
+
+```markdown
+<!-- absent-path-next-line: retired spec, named as history (#1585) -->
+`packages/core/src/style/property-schema.test.ts` covered this.
+```
+
+- The marker is an HTML comment that is **the whole line**, indentation and
+  block-quote markers aside. Requiring that keeps a document which *describes*
+  the syntax in a sentence from declaring anything.
+- Everything after the colon is the reason, free text, and **required**. An
+  empty reason is a finding, and it suppresses nothing: the line below is
+  checked as usual, so a dead path behind an invalid declaration stays
+  reported.
+- It reaches **the next line only**. A declaration on the last line of a file,
+  on a fence opener, or above another declaration therefore stands for
+  nothing, and says so as a finding.
+- A declaration whose next line names no absent path is a finding
+  (`absent-path-marker-unused`). That is the second binding: the declaration
+  cannot outlive what it claims.
+
 ## Rationale
 
 - **A flag, not config.** `--source-prefix packages --source-prefix scripts`
