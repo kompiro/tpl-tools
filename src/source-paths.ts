@@ -200,6 +200,13 @@ export function absentPathReason(line: string): string | undefined {
   return m === null ? undefined : m[1].trim();
 }
 
+/** A line with up to `width` of its leading spaces removed. */
+function dropIndent(text: string, width: number): string {
+  let at = 0;
+  while (at < width && text[at] === " ") at++;
+  return text.slice(at);
+}
+
 /** Where the content after each block-quote marker starts, `0` first, so the
  * last index is the line's quote depth. */
 function quoteOffsets(line: string): number[] {
@@ -236,7 +243,7 @@ function scanLines(
   const skipped = lines.map(() => false);
   const missing = lines.map((): string[] => []);
   let inFrontmatter = lines[0]?.trim() === "---";
-  let openFence: { delim: string; depth: number } | undefined;
+  let openFence: { delim: string; depth: number; indent: number } | undefined;
   let paragraph: { text: string; index: number }[] = [];
 
   /** A paragraph is the unit a span may wrap inside, so it is read as a whole. */
@@ -283,8 +290,12 @@ function scanLines(
         // as long, and at the fence's own quote depth closes it. CommonMark
         // gives a closing fence no info string, so ```ts inside a ``` block is
         // content; so is a delimiter one quote deeper, which still carries a
-        // `>` once the fence's own markers come off.
-        const fence = FENCE_RE.exec(line.slice(offsets[openFence.depth]));
+        // `>` once the fence's own markers come off. A fence a list item
+        // opened closes at that item's content column, which is where its own
+        // indentation puts the delimiter.
+        const fence = FENCE_RE.exec(
+          dropIndent(line.slice(offsets[openFence.depth]), openFence.indent),
+        );
         const closes =
           fence !== null &&
           fence[1][0] === openFence.delim[0] &&
@@ -297,7 +308,10 @@ function scanLines(
     }
 
     const content = line.slice(offsets[depth]);
-    const fence = FENCE_RE.exec(content.replace(LIST_MARKER_RE, ""));
+    // A list marker comes off the way the quote markers do, and its width is
+    // the item's content column, which the closing delimiter is indented to.
+    const afterListMarker = content.replace(LIST_MARKER_RE, "");
+    const fence = FENCE_RE.exec(afterListMarker);
     // A backtick fence's info string may not contain a backtick, so ```lang`x
     // opens nothing: it is a paragraph holding an inline span, and is read as
     // one below. Opening a phantom fence on it would silence the rest of the
@@ -305,7 +319,7 @@ function scanLines(
     if (fence !== null && !(fence[1][0] === "`" && fence[2].includes("`"))) {
       flushParagraph();
       skipped[index] = true;
-      openFence = { delim: fence[1], depth };
+      openFence = { delim: fence[1], depth, indent: content.length - afterListMarker.length };
       return;
     }
 

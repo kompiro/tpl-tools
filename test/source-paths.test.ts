@@ -211,6 +211,16 @@ describe("checkSourcePaths", () => {
     expect(check(md.join("\n"))).toEqual([]);
   });
 
+  it("closes a list item's fence at the item's own content column", () => {
+    // `10. ` is four wide, so the delimiter that closes this block sits past
+    // the three spaces a fence may otherwise carry. Missing it would leave the
+    // fence open and silence the rest of the document.
+    const md = ["10. ```sh", "    echo hi", "    ```", "`packages/core/src/gone.ts`"];
+    expect(check(md.join("\n"))).toEqual([
+      { kind: "body-source-path-missing", line: 4, path: "packages/core/src/gone.ts" },
+    ]);
+  });
+
   it("does not close a fence on a delimiter one quote deeper", () => {
     // Once the fence's own `>` comes off, the delimiter still carries one, so
     // it is content rather than the close.
