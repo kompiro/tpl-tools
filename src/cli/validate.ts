@@ -25,9 +25,15 @@ Options:
   --packages-root <path>   Directory whose subdirectories are the allowed
                            values for scope.packages. Omit to skip the
                            scope.packages check.
+  --source-prefix <dir>    Top-level directory holding source. A code span in a
+                           TPL body is checked against the working tree when
+                           its first path segment is one of these. Repeat the
+                           flag for several (--source-prefix packages
+                           --source-prefix scripts). Paths resolve relative to
+                           the working directory. Omit to skip the check.
   -h, --help               Show this help`;
 
-const VALUE_FLAGS = new Set(["tpl-dir", "config", "packages-root"]);
+const VALUE_FLAGS = new Set(["tpl-dir", "config", "packages-root", "source-prefix"]);
 
 export function main(argv: readonly string[]): number {
   let parsed: ReturnType<typeof parseFlags>;
@@ -66,12 +72,33 @@ export function main(argv: readonly string[]): number {
       : [];
   }
 
+  // Read every occurrence: `options` keeps only the last, and this flag is
+  // meant to be repeated.
+  const sourcePrefixes = parsed.optionsAll.get("source-prefix") ?? [];
+  for (const prefix of sourcePrefixes) {
+    // `--source-prefix=` parses as an empty value, which no first path segment
+    // can equal, so the check the caller asked for would run over nothing. A
+    // usage error says so rather than reporting a clean corpus.
+    if (prefix === "") {
+      process.stderr.write("error: --source-prefix takes a directory name, not an empty value\n");
+      return 2;
+    }
+    if (prefix.includes("/") || prefix.includes("\\")) {
+      process.stderr.write(
+        `error: --source-prefix takes one top-level directory name, not a path: ${prefix}\n`,
+      );
+      return 2;
+    }
+  }
+
   const { findings, parsed: tpls } = validateAll({
     tplDir,
     validTopics: refData.topics,
     validPackages,
     readmePath,
     idFormat: refData.idFormat,
+    sourcePrefixes,
+    repoRoot: cwd,
   });
 
   if (findings.length === 0) {

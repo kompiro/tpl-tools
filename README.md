@@ -72,6 +72,7 @@ Writes a starter `tpl.config.json` (defining `topics` and `idFormat`) to `dir`
 
 ```
 tpl validate [--tpl-dir <path>] [--config <path>] [--packages-root <path>]
+             [--source-prefix <dir>]...
 ```
 
 - `--tpl-dir` — directory of TPL files (default `docs/test-perspectives`)
@@ -81,8 +82,49 @@ tpl validate [--tpl-dir <path>] [--config <path>] [--packages-root <path>]
   validation and use the default id format.**
 - `--packages-root` — directory whose immediate subdirectories are the allowed
   values for `scope.packages`. Omit to skip that check (non-monorepo repos).
+- `--source-prefix` — top-level directory holding source; repeat for several.
+  Omit to skip the body source-path check. See below.
 
 Exit code `0` = clean, `1` = findings, `2` = usage / I/O error.
+
+#### Source paths named in a TPL body
+
+A TPL can cite a test or source file that has since been deleted, and nothing
+notices. `--source-prefix` turns that into a finding:
+
+```sh
+tpl validate --source-prefix packages --source-prefix scripts
+```
+
+An inline code span is checked when it is a path **end to end** and its first
+segment is one of the prefixes. That single rule keeps globs (`at-*.spec.ts`),
+placeholders (`<spec path>`) and shell lines (`cp a b`) out with no deny-list of
+illustrative names. Matching is by segment, so `packages-old/foo` does not
+belong to the prefix `packages`. Paths resolve relative to the working
+directory, and a path resolves when it exists as **either a file or a
+directory** — records legitimately name directories. Frontmatter and fenced
+blocks are not read, one inside a block quote or a list item included; the rest
+of the body
+is. A span is read the way CommonMark reads one: `` ` `` inside a longer run of
+backticks is content rather than a delimiter, and a span that wraps onto the
+next line is still one span. Build output (`node_modules`,
+`dist`, `out`, `coverage`, `build`) is skipped by segment, since a clean
+checkout does not have it.
+
+A record is sometimes right to name a path that is absent — a retired test
+named as history, or a file a design intends to create. Declare it on the line
+above, with a reason:
+
+```markdown
+<!-- absent-path-next-line: retired spec, named as history (#1585) -->
+`packages/core/src/style/property-schema.test.ts` covered this.
+```
+
+The declaration is a claim, not a switch, so it is held to it both ways: an
+empty reason is rejected **and** suppresses nothing, and a declaration whose
+next line fully resolves is itself a finding, so it cannot outlive the claim it
+stands for. It reaches the next line only, never across a blank line or into a
+fenced block.
 
 Checks are per-file (frontmatter shape, filename ↔ id, controlled
 vocabularies) and cross-file (id uniqueness, `related_to` resolution, README

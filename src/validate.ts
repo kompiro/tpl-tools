@@ -1,3 +1,4 @@
+import { ABSENT_PATH_MARKER, checkSourcePaths } from "./source-paths.ts";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { load as parseYaml } from "js-yaml";
@@ -52,7 +53,10 @@ export type Finding =
   | { kind: "scope-package-missing"; file: string; pkg: string }
   | { kind: "deprecated-no-rationale"; file: string }
   | { kind: "readme-missing-row"; tplId: string }
-  | { kind: "readme-row-points-to-missing-file"; tplId: string; href: string };
+  | { kind: "readme-row-points-to-missing-file"; tplId: string; href: string }
+  | { kind: "body-source-path-missing"; file: string; line: number; path: string }
+  | { kind: "absent-path-marker-unused"; file: string; line: number }
+  | { kind: "absent-path-marker-empty-reason"; file: string; line: number };
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -355,6 +359,15 @@ interface ValidateOptions {
   validPackages: readonly string[] | null;
   readmePath?: string;
   /**
+   * Top-level directories that hold source. A code span in a TPL body is
+   * checked against the working tree only when its first path segment is one
+   * of these. Empty or omitted skips the body-path check entirely, the way
+   * `validPackages: null` skips the scope.packages check.
+   */
+  sourcePrefixes?: readonly string[];
+  /** Directory the body paths resolve against. Defaults to `process.cwd()`. */
+  repoRoot?: string;
+  /**
    * TPL id / filename convention. Defaults to `date-sequence` when omitted.
    */
   idFormat?: IdFormat;
@@ -395,6 +408,9 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
   const parsed: ParsedTpl[] = [];
   const idFormat = opts.idFormat ?? DEFAULT_ID_FORMAT;
 
+  const sourcePrefixes = new Set(opts.sourcePrefixes ?? []);
+  const repoRoot = opts.repoRoot ?? process.cwd();
+
   for (const f of listTplFiles(opts.tplDir)) {
     const full = join(opts.tplDir, f);
     const content = readFileSync(full, "utf8");
@@ -405,6 +421,14 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
     });
     findings.push(...result.findings);
     if (result.parsed) parsed.push(result.parsed);
+
+    for (const sp of checkSourcePaths(content, sourcePrefixes, repoRoot)) {
+      findings.push(
+        sp.kind === "body-source-path-missing"
+          ? { kind: sp.kind, file: full, line: sp.line, path: sp.path }
+          : { kind: sp.kind, file: full, line: sp.line },
+      );
+    }
   }
 
   findings.push(...validateUniqueIds(parsed));
@@ -455,6 +479,12 @@ export function formatFinding(f: Finding): string {
       return `${f.file}: status=deprecated but body has no deprecation rationale`;
     case "readme-missing-row":
       return `README index: missing row for ${f.tplId}`;
+    case "body-source-path-missing":
+      return `${f.file}:${f.line}: \`${f.path}\` does not exist`;
+    case "absent-path-marker-unused":
+      return `${f.file}:${f.line}: \`${ABSENT_PATH_MARKER}\` declares an absent path, but every path on the next line resolves`;
+    case "absent-path-marker-empty-reason":
+      return `${f.file}:${f.line}: \`${ABSENT_PATH_MARKER}\` needs a reason after the colon`;
     case "readme-row-points-to-missing-file":
       return `README index: row for ${f.tplId} points to missing file "${f.href}"`;
   }
