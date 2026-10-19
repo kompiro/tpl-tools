@@ -220,6 +220,20 @@ describe("regenerate CLI", () => {
     expect(existsSync(join(root, "nowhere"))).toBe(false);
   });
 
+  it("reports an index path that cannot be read as an I/O error, in both modes", () => {
+    mkdirSync(join(dir(), "index.md"));
+    expect(regenerate()).toBe(2);
+    expect(regenerate("--check")).toBe(2);
+    expect(err).toContain("cannot read");
+  });
+
+  it("validate reports an index path that cannot be read, rather than crashing", () => {
+    mkdirSync(join(dir(), "index.md"));
+    expect(validate()).toBe(1);
+    expect(err).toContain("index.md: cannot read the index file");
+    expect(err).not.toContain("index file not found");
+  });
+
   it("refuses to run without indexFile, so validate and regenerate agree on the file", () => {
     writeConfig({ idFormat: "issue-number", topics: ["testing"] });
     expect(regenerate()).toBe(2);

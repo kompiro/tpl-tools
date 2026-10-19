@@ -133,6 +133,13 @@ export function loadReferenceData(path?: string): ReferenceData {
         `${path}: "indexFile" must be a path inside the TPL directory, got ${JSON.stringify(obj.indexFile)}`,
       );
     }
+    // The TPL directory's own `TPL-*.md` files are read as TPLs, so an index
+    // there under such a name would be validated as one.
+    if (/^TPL-.*\.md$/.test(obj.indexFile)) {
+      throw new ReferenceDataInvalidError(
+        `${path}: "indexFile" must not be named like a TPL (TPL-*.md), got ${JSON.stringify(obj.indexFile)}`,
+      );
+    }
     indexFile = obj.indexFile;
   }
 

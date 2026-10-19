@@ -55,6 +55,7 @@ export type Finding =
   | { kind: "readme-missing-row"; tplId: string; index?: string }
   | { kind: "readme-row-points-to-missing-file"; tplId: string; href: string; index?: string }
   | { kind: "index-missing"; index: string }
+  | { kind: "index-unreadable"; index: string; message: string }
   | { kind: "body-source-path-missing"; file: string; line: number; path: string }
   | { kind: "absent-path-marker-unused"; file: string; line: number }
   | { kind: "absent-path-marker-empty-reason"; file: string; line: number };
@@ -453,13 +454,18 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
 
   if (opts.indexPath !== undefined) {
     const index = basename(opts.indexPath);
-    if (existsSync(opts.indexPath)) {
-      const content = readFileSync(opts.indexPath, "utf8");
-      // `tpl regenerate` writes links relative to the index's own directory.
-      const baseDir = dirname(opts.indexPath);
-      findings.push(...validateReadmeIndex(content, parsed, baseDir, idFormat, index).findings);
-    } else {
+    if (!existsSync(opts.indexPath)) {
       findings.push({ kind: "index-missing", index });
+    } else {
+      try {
+        const content = readFileSync(opts.indexPath, "utf8");
+        // `tpl regenerate` writes links relative to the index's own directory.
+        const baseDir = dirname(opts.indexPath);
+        findings.push(...validateReadmeIndex(content, parsed, baseDir, idFormat, index).findings);
+      } catch (e) {
+        // e.g. the path is a directory.
+        findings.push({ kind: "index-unreadable", index, message: (e as Error).message });
+      }
     }
   } else if (opts.readmePath && existsSync(opts.readmePath)) {
     const readme = readFileSync(opts.readmePath, "utf8");
@@ -510,6 +516,8 @@ export function formatFinding(f: Finding): string {
         : `${f.index}: missing entry for ${f.tplId}; run \`tpl regenerate\``;
     case "index-missing":
       return `${f.index}: index file not found; run \`tpl regenerate\``;
+    case "index-unreadable":
+      return `${f.index}: cannot read the index file: ${f.message}`;
     case "body-source-path-missing":
       return `${f.file}:${f.line}: \`${f.path}\` does not exist`;
     case "absent-path-marker-unused":

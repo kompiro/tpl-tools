@@ -163,7 +163,9 @@ tpl regenerate [--check] [--tpl-dir <path>] [--config <path>]
 ```
 
 Writes the TPL index to the file named by `indexFile` in the config (relative
-to the TPL directory). Active TPLs are grouped under one `## <topic>` heading
+to the TPL directory, and inside it: no absolute path, no `..`, no symlink
+leading out; not named `TPL-*.md` directly in it, since that would be read as a
+TPL). Active TPLs are grouped under one `## <topic>` heading
 per topic, in the order of the `topics` vocabulary (topics outside it follow
 alphabetically), sorted by id within a section; deprecated TPLs follow under
 `## Deprecated`. Each entry links the TPL and lists its `discovered_from`

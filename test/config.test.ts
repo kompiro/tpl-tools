@@ -90,6 +90,16 @@ describe("loadReferenceData", () => {
     }
   });
 
+  it("rejects an indexFile named like a TPL, which validate would read as one", () => {
+    const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile: "TPL-index.md" }));
+    expect(() => loadReferenceData(path)).toThrow(/named like a TPL/);
+  });
+
+  it("accepts a TPL-like name in a subdirectory, which TPL discovery does not scan", () => {
+    const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile: "gen/TPL-index.md" }));
+    expect(loadReferenceData(path).indexFile).toBe("gen/TPL-index.md");
+  });
+
   it("accepts an indexFile in a subdirectory of the TPL directory", () => {
     const path = tmpFile(
       "ref.json",

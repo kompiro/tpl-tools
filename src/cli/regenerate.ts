@@ -111,9 +111,15 @@ export function main(argv: readonly string[]): number {
   });
   // Compare with LF line endings: a Windows checkout under core.autocrlf
   // holds CRLF, and that alone does not make the index stale.
-  const current = existsSync(indexPath)
-    ? readFileSync(indexPath, "utf8").replace(/\r\n/g, "\n")
-    : undefined;
+  let current: string | undefined;
+  try {
+    current = existsSync(indexPath)
+      ? readFileSync(indexPath, "utf8").replace(/\r\n/g, "\n")
+      : undefined;
+  } catch (e) {
+    process.stderr.write(`error: cannot read ${shown}: ${(e as Error).message}\n`);
+    return 2;
+  }
 
   if (parsed.flags.has("check")) {
     if (current === expected) {
