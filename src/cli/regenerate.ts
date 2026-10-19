@@ -47,8 +47,13 @@ function isInside(root: string, path: string): boolean {
 function unsafeIndexPath(tplDir: string, indexPath: string): string | undefined {
   let anchor = dirname(indexPath);
   while (!existsSync(anchor)) anchor = dirname(anchor);
-  if (!isInside(realpathSync(tplDir), realpathSync(anchor))) {
-    return "its directory resolves outside the TPL directory";
+  try {
+    if (!isInside(realpathSync(tplDir), realpathSync(anchor))) {
+      return "its directory resolves outside the TPL directory";
+    }
+  } catch (e) {
+    // e.g. a permission error, or the directory changing under us.
+    return `cannot resolve its directory: ${(e as Error).message}`;
   }
   try {
     if (lstatSync(indexPath).isSymbolicLink()) return "it is a symlink";
