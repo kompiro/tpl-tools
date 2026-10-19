@@ -138,17 +138,16 @@ retrospective TPL を書くたびに「**この観点を proactive TPL として
 ```sh
 npx tpl validate \
   --tpl-dir docs/test-perspectives \
-  --config adr.config.json            # reference-data: topics + idFormat
+  --config adr.config.json            # reference-data: topics + idFormat + indexFile
+npx tpl regenerate                    # topic 別の一覧（indexFile）を生成
 npx tpl related <topic>               # Design Doc 用 markdown を出力
 npx tpl review-body                   # 定期 deprecation review issue の本文を生成
 ```
 
-Wire `tpl validate` into a pre-push hook and/or CI so frontmatter / ID 形式 / topic 語彙 / README 一覧の整合性が機械的にチェックされる。
+Wire `tpl validate` and `tpl regenerate --check` into a pre-push hook and/or CI so frontmatter / ID 形式 / topic 語彙 / 一覧の整合性が機械的にチェックされる。
 
 ## 一覧
 
-現時点で active な TPL は以下:
+TPL の一覧は config の `indexFile` が指すファイル（例: `index.md`）に `tpl regenerate` が topic 別に生成する。TPL を追加・編集したら `tpl regenerate` を実行する。一覧で merge conflict が起きたときも、手で直さず再実行すればよい。
 
-| ID | タイトル | topic | 起源 |
-|---|---|---|---|
-| _(no entries yet)_ | | | |
+一覧をこの README に手で書く運用（`indexFile` を設定しない）も引き続き使えるが、並行するブランチがそれぞれ TPL を足すと表の末尾で必ず衝突する。

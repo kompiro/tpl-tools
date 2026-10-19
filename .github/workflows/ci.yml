@@ -29,4 +29,9 @@ jobs:
           test -f /tmp/tpl-smoke/tpl.config.json
           node dist/cli.js validate --tpl-dir test/fixtures/tpl --config test/fixtures/reference-data.json
           node dist/cli.js related testing --tpl-dir test/fixtures/tpl
+          cp -r test/fixtures/tpl /tmp/tpl-regen
+          jq '. + {indexFile: "index.md"}' test/fixtures/reference-data.json > /tmp/tpl-regen.json
+          node dist/cli.js regenerate --tpl-dir /tmp/tpl-regen --config /tmp/tpl-regen.json
+          node dist/cli.js regenerate --check --tpl-dir /tmp/tpl-regen --config /tmp/tpl-regen.json
+          node dist/cli.js validate --tpl-dir /tmp/tpl-regen --config /tmp/tpl-regen.json
           node dist/cli.js review-body --tpl-dir test/fixtures/tpl --repo kompiro/example > /dev/null

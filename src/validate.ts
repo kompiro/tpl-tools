@@ -52,8 +52,9 @@ export type Finding =
   | { kind: "duplicate-id"; id: string; files: string[] }
   | { kind: "scope-package-missing"; file: string; pkg: string }
   | { kind: "deprecated-no-rationale"; file: string }
-  | { kind: "readme-missing-row"; tplId: string }
-  | { kind: "readme-row-points-to-missing-file"; tplId: string; href: string }
+  | { kind: "readme-missing-row"; tplId: string; index?: string }
+  | { kind: "readme-row-points-to-missing-file"; tplId: string; href: string; index?: string }
+  | { kind: "index-missing"; index: string }
   | { kind: "body-source-path-missing"; file: string; line: number; path: string }
   | { kind: "absent-path-marker-unused"; file: string; line: number }
   | { kind: "absent-path-marker-empty-reason"; file: string; line: number };
@@ -313,6 +314,10 @@ interface ReadmeIndexCheckResult {
   rowIds: Set<string>;
 }
 
+function at(index: string | undefined): { index?: string } {
+  return index === undefined ? {} : { index };
+}
+
 const FENCED_BLOCK_RE = /```[\s\S]*?```/g;
 
 /**
@@ -323,11 +328,16 @@ function stripFencedBlocks(content: string): string {
   return content.replace(FENCED_BLOCK_RE, "");
 }
 
+/**
+ * Check that the index links every TPL and that every link resolves. `index`
+ * names a generated index file in the findings; omit it for the README.
+ */
 export function validateReadmeIndex(
   readmeContent: string,
   parsed: readonly ParsedTpl[],
   tplDir: string,
   idFormat: IdFormat = DEFAULT_ID_FORMAT,
+  index?: string,
 ): ReadmeIndexCheckResult {
   const findings: Finding[] = [];
   const rowIds = new Set<string>();
@@ -338,12 +348,12 @@ export function validateReadmeIndex(
     rowIds.add(id);
     const target = resolve(tplDir, href);
     if (!existsSync(target)) {
-      findings.push({ kind: "readme-row-points-to-missing-file", tplId: id, href });
+      findings.push({ kind: "readme-row-points-to-missing-file", tplId: id, href, ...at(index) });
     }
   }
   for (const p of parsed) {
     if (!rowIds.has(p.fm.id)) {
-      findings.push({ kind: "readme-missing-row", tplId: p.fm.id });
+      findings.push({ kind: "readme-missing-row", tplId: p.fm.id, ...at(index) });
     }
   }
   return { findings, rowIds };
@@ -358,6 +368,12 @@ interface ValidateOptions {
   validTopics: readonly string[];
   validPackages: readonly string[] | null;
   readmePath?: string;
+  /**
+   * Generated index file (`indexFile` in the config, resolved). When given it
+   * is checked instead of `readmePath`, and its absence is a finding: the
+   * README may legitimately be missing, a configured index may not.
+   */
+  indexPath?: string;
   /**
    * Top-level directories that hold source. A code span in a TPL body is
    * checked against the working tree only when its first path segment is one
@@ -434,7 +450,15 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
   findings.push(...validateUniqueIds(parsed));
   findings.push(...validateRelatedTo(parsed));
 
-  if (opts.readmePath && existsSync(opts.readmePath)) {
+  if (opts.indexPath !== undefined) {
+    const index = basename(opts.indexPath);
+    if (existsSync(opts.indexPath)) {
+      const content = readFileSync(opts.indexPath, "utf8");
+      findings.push(...validateReadmeIndex(content, parsed, opts.tplDir, idFormat, index).findings);
+    } else {
+      findings.push({ kind: "index-missing", index });
+    }
+  } else if (opts.readmePath && existsSync(opts.readmePath)) {
     const readme = readFileSync(opts.readmePath, "utf8");
     const indexResult = validateReadmeIndex(readme, parsed, opts.tplDir, idFormat);
     findings.push(...indexResult.findings);
@@ -478,7 +502,11 @@ export function formatFinding(f: Finding): string {
     case "deprecated-no-rationale":
       return `${f.file}: status=deprecated but body has no deprecation rationale`;
     case "readme-missing-row":
-      return `README index: missing row for ${f.tplId}`;
+      return f.index === undefined
+        ? `README index: missing row for ${f.tplId}`
+        : `${f.index}: missing entry for ${f.tplId}; run \`tpl regenerate\``;
+    case "index-missing":
+      return `${f.index}: index file not found; run \`tpl regenerate\``;
     case "body-source-path-missing":
       return `${f.file}:${f.line}: \`${f.path}\` does not exist`;
     case "absent-path-marker-unused":
@@ -486,6 +514,8 @@ export function formatFinding(f: Finding): string {
     case "absent-path-marker-empty-reason":
       return `${f.file}:${f.line}: \`${ABSENT_PATH_MARKER}\` needs a reason after the colon`;
     case "readme-row-points-to-missing-file":
-      return `README index: row for ${f.tplId} points to missing file "${f.href}"`;
+      return f.index === undefined
+        ? `README index: row for ${f.tplId} points to missing file "${f.href}"`
+        : `${f.index}: entry for ${f.tplId} points to missing file "${f.href}"; run \`tpl regenerate\``;
   }
 }

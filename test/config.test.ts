@@ -69,6 +69,20 @@ describe("loadReferenceData", () => {
     expect(() => loadReferenceData(path)).toThrow(/idFormat/);
   });
 
+  it("reads indexFile, and leaves it unset when omitted", () => {
+    const set = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile: "index.md" }));
+    expect(loadReferenceData(set).indexFile).toBe("index.md");
+    const unset = tmpFile("ref.json", JSON.stringify({ topics: [] }));
+    expect(loadReferenceData(unset).indexFile).toBeUndefined();
+  });
+
+  it("rejects an empty or non-string indexFile", () => {
+    for (const indexFile of ["", 1]) {
+      const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile }));
+      expect(() => loadReferenceData(path)).toThrow(/indexFile/);
+    }
+  });
+
   it("throws when the file does not exist", () => {
     expect(() => loadReferenceData("/no/such/file.json")).toThrow(ReferenceDataMissingError);
   });

@@ -17,6 +17,11 @@
       "type": "array",
       "description": "Controlled vocabulary for a TPL's `topic` field. Empty or omitted disables topic validation.",
       "items": { "type": "string", "minLength": 1 }
+    },
+    "indexFile": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Generated index file, relative to the TPL directory (e.g. `index.md`). When set, `tpl regenerate` writes it, grouped by topic, and `tpl validate` checks it instead of README.md. Omit to keep a hand-maintained README index."
     }
   }
 }

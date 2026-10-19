@@ -12,7 +12,7 @@ import { parseFlags } from "./args.ts";
 const HELP = `usage: tpl validate [options]
 
 Validate TPL frontmatter, filename conventions, cross-references, and the
-README index.
+index: the file named by "indexFile" in the config, or README.md without it.
 
 Options:
   --tpl-dir <path>         TPL directory (default: docs/test-perspectives)
@@ -96,6 +96,7 @@ export function main(argv: readonly string[]): number {
     validTopics: refData.topics,
     validPackages,
     readmePath,
+    ...(refData.indexFile === undefined ? {} : { indexPath: join(tplDir, refData.indexFile) }),
     idFormat: refData.idFormat,
     sourcePrefixes,
     repoRoot: cwd,

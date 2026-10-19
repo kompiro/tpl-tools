@@ -39,15 +39,16 @@ SHA256, and installs it to `~/.local/bin/tpl`. Override with `TPL_VERSION`
 tpl <subcommand> [options]
 
   init           generate a starter tpl.config.json in the target dir (or CWD)
-  validate       validate TPL frontmatter, filenames, cross-refs, README index
+  validate       validate TPL frontmatter, filenames, cross-refs, the index
+  regenerate     write the topic-grouped TPL index named by "indexFile"
   related        list active TPLs matching a topic (markdown for Design Docs)
   review-body    print the body for a periodic TPL deprecation-review issue
 ```
 
 ### Configuration (`tpl.config.json`)
 
-`tpl` reads reference data — the controlled `topics` vocabulary and the
-`idFormat` — from a JSON file. Resolution order:
+`tpl` reads reference data — the controlled `topics` vocabulary, the
+`idFormat`, and the optional `indexFile` — from a JSON file. Resolution order:
 
 1. an explicit `--config <path>` (highest priority)
 2. `tpl.config.json` in the working directory, when present
@@ -155,6 +156,42 @@ corpus is not supported.
 }
 ```
 
+### `tpl regenerate`
+
+```
+tpl regenerate [--check] [--tpl-dir <path>] [--config <path>]
+```
+
+Writes the TPL index to the file named by `indexFile` in the config (relative
+to the TPL directory). Active TPLs are grouped under one `## <topic>` heading
+per topic, in the order of the `topics` vocabulary (topics outside it follow
+alphabetically), sorted by id within a section; deprecated TPLs follow under
+`## Deprecated`. Each entry links the TPL and lists its `discovered_from`
+issues.
+
+```json
+{
+  "idFormat": "issue-number",
+  "topics": ["frontend", "api", "data"],
+  "indexFile": "index.md"
+}
+```
+
+With `--check` it writes nothing and exits `1` when the index is missing or
+stale; run it in CI next to `tpl validate`. Without `indexFile` the command
+exits `2`: `tpl validate` checks whichever file `indexFile` names, so a
+default here would let the two commands look at different files.
+
+Why generate it, and why by topic: a hand-maintained index gets one new row per
+TPL, and since ids grow (issue numbers, dates) every new row lands at the same
+tail, so any two branches that each add a TPL conflict. Under topic headings,
+two branches conflict only when they add to the same topic, and resolving that
+conflict is re-running `tpl regenerate`.
+
+Once `indexFile` is set, `tpl validate` checks that file instead of
+`README.md` (every TPL listed, every link resolving) and reports a missing
+index file; the README no longer needs a row per TPL.
+
 ### `tpl related`
 
 ```
@@ -205,6 +242,7 @@ import {
   loadReferenceData,
   findRelated,
   formatRelatedAsMarkdown,
+  renderIndex,
   renderReviewBody,
 } from "@kompiro/tpl-tools";
 ```

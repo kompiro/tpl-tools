@@ -39,6 +39,12 @@ export interface ReferenceData {
   idFormat: IdFormat;
   /** Allowed values for a TPL's `topic` field. Empty = no topic validation. */
   topics: readonly string[];
+  /**
+   * Generated index file, relative to the TPL directory (e.g. `index.md`).
+   * When set, `tpl regenerate` writes it and `tpl validate` checks it instead
+   * of `README.md`. Unset keeps the hand-maintained README index.
+   */
+  indexFile?: string;
 }
 
 export class ReferenceDataInvalidError extends Error {
@@ -64,8 +70,9 @@ function isStringArray(v: unknown): v is string[] {
 /**
  * Load reference data from a JSON file.
  *
- * The file is expected to contain a `topics` array of strings and an optional
- * `idFormat` string (`"date-sequence"` or `"issue-number"`). Other keys are
+ * The file is expected to contain a `topics` array of strings, an optional
+ * `idFormat` string (`"date-sequence"` or `"issue-number"`), and an optional
+ * `indexFile` string. Other keys are
  * ignored — this is intentionally lenient so the same file can serve other
  * tools. When `path` is `undefined`, returns empty reference data, which
  * disables topic validation entirely and falls back to the default id format.
@@ -111,5 +118,18 @@ export function loadReferenceData(path?: string): ReferenceData {
   if (!isStringArray(topicsRaw)) {
     throw new ReferenceDataInvalidError(`${path}: "topics" must be an array of strings`);
   }
-  return { idFormat, topics: topicsRaw };
+
+  let indexFile: string | undefined;
+  if (obj.indexFile !== undefined) {
+    if (typeof obj.indexFile !== "string" || obj.indexFile === "") {
+      throw new ReferenceDataInvalidError(
+        `${path}: "indexFile" must be a non-empty string, got ${JSON.stringify(obj.indexFile)}`,
+      );
+    }
+    indexFile = obj.indexFile;
+  }
+
+  return indexFile === undefined
+    ? { idFormat, topics: topicsRaw }
+    : { idFormat, topics: topicsRaw, indexFile };
 }
