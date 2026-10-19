@@ -83,6 +83,21 @@ describe("loadReferenceData", () => {
     }
   });
 
+  it("rejects an indexFile that reaches outside the TPL directory", () => {
+    for (const indexFile of ["../index.md", "a/../../index.md", "/tmp/index.md"]) {
+      const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile }));
+      expect(() => loadReferenceData(path)).toThrow(/inside the TPL directory/);
+    }
+  });
+
+  it("accepts an indexFile in a subdirectory of the TPL directory", () => {
+    const path = tmpFile(
+      "ref.json",
+      JSON.stringify({ topics: [], indexFile: "generated/index.md" }),
+    );
+    expect(loadReferenceData(path).indexFile).toBe("generated/index.md");
+  });
+
   it("throws when the file does not exist", () => {
     expect(() => loadReferenceData("/no/such/file.json")).toThrow(ReferenceDataMissingError);
   });

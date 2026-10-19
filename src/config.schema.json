@@ -21,7 +21,10 @@
     "indexFile": {
       "type": "string",
       "minLength": 1,
-      "description": "Generated index file, relative to the TPL directory (e.g. `index.md`). When set, `tpl regenerate` writes it, grouped by topic, and `tpl validate` checks it instead of README.md. Omit to keep a hand-maintained README index."
+      "not": {
+        "anyOf": [{ "pattern": "^[\\\\/]" }, { "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)" }]
+      },
+      "description": "Generated index file, relative to the TPL directory and inside it (no absolute path, no `..`) (e.g. `index.md`). When set, `tpl regenerate` writes it, grouped by topic, and `tpl validate` checks it instead of README.md. Omit to keep a hand-maintained README index."
     }
   }
 }

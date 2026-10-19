@@ -216,6 +216,16 @@ describe("regenerate CLI", () => {
     expect(err).toContain("index.md: missing entry for TPL-2; run `tpl regenerate`");
   });
 
+  it("validate resolves a nested index's links from the index's own directory", () => {
+    mkdirSync(join(dir(), "generated"));
+    writeConfig({ idFormat: "issue-number", topics: ["testing"], indexFile: "generated/index.md" });
+    expect(regenerate()).toBe(0);
+    expect(readFileSync(join(dir(), "generated/index.md"), "utf8")).toContain(
+      "(../TPL-1-perspective.md)",
+    );
+    expect(validate()).toBe(0);
+  });
+
   it("validate reports a configured index that does not exist", () => {
     expect(validate()).toBe(1);
     expect(err).toContain("index.md: index file not found");

@@ -1,6 +1,6 @@
 import { ABSENT_PATH_MARKER, checkSourcePaths } from "./source-paths.ts";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { load as parseYaml } from "js-yaml";
 import { DEFAULT_ID_FORMAT, type IdFormat } from "./config.ts";
 
@@ -329,13 +329,14 @@ function stripFencedBlocks(content: string): string {
 }
 
 /**
- * Check that the index links every TPL and that every link resolves. `index`
- * names a generated index file in the findings; omit it for the README.
+ * Check that the index links every TPL and that every link resolves. Links
+ * resolve against `baseDir`, the directory holding the index. `index` names a
+ * generated index file in the findings; omit it for the README.
  */
 export function validateReadmeIndex(
   readmeContent: string,
   parsed: readonly ParsedTpl[],
-  tplDir: string,
+  baseDir: string,
   idFormat: IdFormat = DEFAULT_ID_FORMAT,
   index?: string,
 ): ReadmeIndexCheckResult {
@@ -346,7 +347,7 @@ export function validateReadmeIndex(
   for (const m of linkScope.matchAll(readmeLinkRe)) {
     const [, id, href] = m;
     rowIds.add(id);
-    const target = resolve(tplDir, href);
+    const target = resolve(baseDir, href);
     if (!existsSync(target)) {
       findings.push({ kind: "readme-row-points-to-missing-file", tplId: id, href, ...at(index) });
     }
@@ -454,7 +455,9 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
     const index = basename(opts.indexPath);
     if (existsSync(opts.indexPath)) {
       const content = readFileSync(opts.indexPath, "utf8");
-      findings.push(...validateReadmeIndex(content, parsed, opts.tplDir, idFormat, index).findings);
+      // `tpl regenerate` writes links relative to the index's own directory.
+      const baseDir = dirname(opts.indexPath);
+      findings.push(...validateReadmeIndex(content, parsed, baseDir, idFormat, index).findings);
     } else {
       findings.push({ kind: "index-missing", index });
     }

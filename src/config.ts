@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 
 /** Default reference-data filename looked up in the working directory. */
 export const CONFIG_FILENAME = "tpl.config.json";
@@ -124,6 +124,13 @@ export function loadReferenceData(path?: string): ReferenceData {
     if (typeof obj.indexFile !== "string" || obj.indexFile === "") {
       throw new ReferenceDataInvalidError(
         `${path}: "indexFile" must be a non-empty string, got ${JSON.stringify(obj.indexFile)}`,
+      );
+    }
+    // `tpl regenerate` writes this file, so it must not reach outside the TPL
+    // directory.
+    if (isAbsolute(obj.indexFile) || obj.indexFile.split(/[\\/]/).includes("..")) {
+      throw new ReferenceDataInvalidError(
+        `${path}: "indexFile" must be a path inside the TPL directory, got ${JSON.stringify(obj.indexFile)}`,
       );
     }
     indexFile = obj.indexFile;
