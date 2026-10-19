@@ -1,5 +1,12 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   CONFIG_FILENAME,
   loadReferenceData,
@@ -25,6 +32,31 @@ Options:
   -h, --help         Show this help`;
 
 const VALUE_FLAGS = new Set(["tpl-dir", "config"]);
+
+function isInside(root: string, path: string): boolean {
+  const rel = relative(root, path);
+  return rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+/**
+ * Why `indexPath` may not be written, or `undefined` when it may. The config
+ * loader already rejects `..` and absolute paths; this catches a symlink on the
+ * way. Directories that do not exist yet are created by this command, so the
+ * nearest existing one decides where they land.
+ */
+function unsafeIndexPath(tplDir: string, indexPath: string): string | undefined {
+  let anchor = dirname(indexPath);
+  while (!existsSync(anchor)) anchor = dirname(anchor);
+  if (!isInside(realpathSync(tplDir), realpathSync(anchor))) {
+    return "its directory resolves outside the TPL directory";
+  }
+  try {
+    if (lstatSync(indexPath).isSymbolicLink()) return "it is a symlink";
+  } catch {
+    // Not there yet: nothing to follow.
+  }
+  return undefined;
+}
 
 export function main(argv: readonly string[]): number {
   let parsed: ReturnType<typeof parseFlags>;
@@ -65,6 +97,11 @@ export function main(argv: readonly string[]): number {
   }
 
   const indexPath = join(tplDir, refData.indexFile);
+  const unsafe = unsafeIndexPath(tplDir, indexPath);
+  if (unsafe !== undefined) {
+    process.stderr.write(`error: refusing to use "indexFile" ${refData.indexFile}: ${unsafe}\n`);
+    return 2;
+  }
   const rel = relative(cwd, indexPath);
   const shown = rel.startsWith("..") ? indexPath : rel;
   const expected = renderIndex(loadAllTpls(tplDir), {
@@ -89,6 +126,7 @@ export function main(argv: readonly string[]): number {
     process.stdout.write(`${shown} is up to date.\n`);
     return 0;
   }
+  mkdirSync(dirname(indexPath), { recursive: true });
   writeFileSync(indexPath, expected);
   process.stdout.write(`Wrote ${shown}.\n`);
   return 0;

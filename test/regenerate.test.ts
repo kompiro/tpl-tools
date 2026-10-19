@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -217,13 +225,46 @@ describe("regenerate CLI", () => {
   });
 
   it("validate resolves a nested index's links from the index's own directory", () => {
-    mkdirSync(join(dir(), "generated"));
+    // `generated/` does not exist yet: regenerate creates it.
     writeConfig({ idFormat: "issue-number", topics: ["testing"], indexFile: "generated/index.md" });
     expect(regenerate()).toBe(0);
     expect(readFileSync(join(dir(), "generated/index.md"), "utf8")).toContain(
       "(../TPL-1-perspective.md)",
     );
     expect(validate()).toBe(0);
+  });
+
+  it("refuses an index directory that is a symlink out of the TPL directory", () => {
+    const outside = join(root, "outside");
+    mkdirSync(outside);
+    writeFileSync(join(outside, "index.md"), "keep me\n");
+    symlinkSync(outside, join(dir(), "generated"));
+    writeConfig({ idFormat: "issue-number", topics: ["testing"], indexFile: "generated/index.md" });
+    expect(regenerate()).toBe(2);
+    expect(err).toContain("resolves outside the TPL directory");
+    expect(readFileSync(join(outside, "index.md"), "utf8")).toBe("keep me\n");
+  });
+
+  it("refuses to create directories under a symlink out of the TPL directory", () => {
+    const outside = join(root, "outside");
+    mkdirSync(outside);
+    symlinkSync(outside, join(dir(), "generated"));
+    writeConfig({
+      idFormat: "issue-number",
+      topics: ["testing"],
+      indexFile: "generated/new/index.md",
+    });
+    expect(regenerate()).toBe(2);
+    expect(existsSync(join(outside, "new"))).toBe(false);
+  });
+
+  it("refuses an index file that is a symlink", () => {
+    const outside = join(root, "outside.md");
+    writeFileSync(outside, "keep me\n");
+    symlinkSync(outside, join(dir(), "index.md"));
+    expect(regenerate()).toBe(2);
+    expect(err).toContain("it is a symlink");
+    expect(readFileSync(outside, "utf8")).toBe("keep me\n");
   });
 
   it("validate reports a configured index that does not exist", () => {
