@@ -205,6 +205,21 @@ describe("regenerate CLI", () => {
     expect(regenerate("--check")).toBe(0);
   });
 
+  it("--check accepts a CRLF checkout of an up-to-date index", () => {
+    expect(regenerate()).toBe(0);
+    writeFileSync(join(dir(), "index.md"), index().replace(/\n/g, "\r\n"));
+    expect(regenerate("--check")).toBe(0);
+  });
+
+  it("reports a write failure as a usage / I/O error, not a crash", () => {
+    // A dangling symlink where the index directory should be: mkdir fails.
+    symlinkSync(join(root, "nowhere"), join(dir(), "generated"));
+    writeConfig({ idFormat: "issue-number", topics: ["testing"], indexFile: "generated/index.md" });
+    expect(regenerate()).toBe(2);
+    expect(err).toContain("cannot write");
+    expect(existsSync(join(root, "nowhere"))).toBe(false);
+  });
+
   it("refuses to run without indexFile, so validate and regenerate agree on the file", () => {
     writeConfig({ idFormat: "issue-number", topics: ["testing"] });
     expect(regenerate()).toBe(2);

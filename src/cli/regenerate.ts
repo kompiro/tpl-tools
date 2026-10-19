@@ -109,7 +109,11 @@ export function main(argv: readonly string[]): number {
     tplDir,
     indexPath,
   });
-  const current = existsSync(indexPath) ? readFileSync(indexPath, "utf8") : undefined;
+  // Compare with LF line endings: a Windows checkout under core.autocrlf
+  // holds CRLF, and that alone does not make the index stale.
+  const current = existsSync(indexPath)
+    ? readFileSync(indexPath, "utf8").replace(/\r\n/g, "\n")
+    : undefined;
 
   if (parsed.flags.has("check")) {
     if (current === expected) {
@@ -126,8 +130,13 @@ export function main(argv: readonly string[]): number {
     process.stdout.write(`${shown} is up to date.\n`);
     return 0;
   }
-  mkdirSync(dirname(indexPath), { recursive: true });
-  writeFileSync(indexPath, expected);
+  try {
+    mkdirSync(dirname(indexPath), { recursive: true });
+    writeFileSync(indexPath, expected);
+  } catch (e) {
+    process.stderr.write(`error: cannot write ${shown}: ${(e as Error).message}\n`);
+    return 2;
+  }
   process.stdout.write(`Wrote ${shown}.\n`);
   return 0;
 }
