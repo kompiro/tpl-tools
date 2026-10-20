@@ -119,6 +119,15 @@ describe("renderIndex", () => {
     expect(out).toContain("- [TPL-5](TPL-5-x.md) — a wrapped title (#5, #4)");
   });
 
+  it("renders each topic once, in vocabulary order, however the vocabulary spells it", () => {
+    const out = renderIndex(
+      [makeTpl({ id: "TPL-1", topic: "app\n  ui" }), makeTpl({ id: "TPL-2", topic: "renderer" })],
+      { ...OPTS, topics: ["app ui", "renderer", "app\nui", "renderer"] },
+    );
+    const headings = out.split("\n").filter((l) => /^##+ /.test(l));
+    expect(headings).toEqual(["## Active", "### app ui", "### renderer"]);
+  });
+
   it("keeps a multi-line topic on its heading line", () => {
     const out = renderIndex([makeTpl({ id: "TPL-1", topic: "app\n  ui" })], OPTS);
     expect(out).toContain("\n### app ui\n");

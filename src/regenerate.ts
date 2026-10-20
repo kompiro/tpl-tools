@@ -77,8 +77,10 @@ export function renderIndex(parsed: readonly ParsedTpl[], opts: RenderIndexOptio
     else byTopic.set(topic, [tpl]);
   }
 
-  const known = opts.topics.filter((t) => byTopic.has(t));
-  const rest = [...byTopic.keys()].filter((t) => !opts.topics.includes(t)).sort();
+  // Spell the vocabulary the way the groups are keyed, once each.
+  const order = [...new Set(opts.topics.map(oneLine))];
+  const known = order.filter((t) => byTopic.has(t));
+  const rest = [...byTopic.keys()].filter((t) => !order.includes(t)).sort();
 
   const lines = [...HEADER];
   const topics = [...known, ...rest];
