@@ -33,6 +33,13 @@ function makeTpl(
   };
 }
 
+/** Position of `needle` in `text`, failing the test when it is absent (so a -1 cannot pass an order check). */
+function pos(text: string, needle: string): number {
+  const i = text.indexOf(needle);
+  expect(i, `expected to find ${JSON.stringify(needle)}`).toBeGreaterThanOrEqual(0);
+  return i;
+}
+
 const TPL_DIR = "/repo/docs/test-perspectives";
 const OPTS = { topics: ["renderer", "app-ui"], tplDir: TPL_DIR, indexPath: `${TPL_DIR}/index.md` };
 
@@ -49,7 +56,7 @@ describe("renderIndex", () => {
     const headings = out.split("\n").filter((l) => /^##+ /.test(l));
     expect(headings).toEqual(["## Active", "### renderer", "### app-ui", "## Deprecated"]);
     expect(out).toContain("- [TPL-20](TPL-20-x.md) — title of TPL-20 (#20)");
-    expect(out.indexOf("TPL-10")).toBeGreaterThan(out.indexOf("## Deprecated"));
+    expect(pos(out, "TPL-10]")).toBeGreaterThan(pos(out, "\n## Deprecated"));
   });
 
   it("keeps a topic named Deprecated apart from the deprecated section", () => {
@@ -63,9 +70,9 @@ describe("renderIndex", () => {
     const headings = out.split("\n").filter((l) => /^##+ /.test(l));
     expect(headings).toEqual(["## Active", "### Deprecated", "## Deprecated"]);
     // Search from a line start: "## Deprecated" also occurs inside "### Deprecated".
-    const deprecatedSection = out.indexOf("\n## Deprecated");
-    expect(out.indexOf("TPL-1]")).toBeLessThan(deprecatedSection);
-    expect(out.indexOf("TPL-2]")).toBeGreaterThan(deprecatedSection);
+    const deprecatedSection = pos(out, "\n## Deprecated");
+    expect(pos(out, "TPL-1]")).toBeLessThan(deprecatedSection);
+    expect(pos(out, "TPL-2]")).toBeGreaterThan(deprecatedSection);
   });
 
   it("omits the Active heading when every TPL is deprecated", () => {
@@ -85,7 +92,7 @@ describe("renderIndex", () => {
       ],
       OPTS,
     );
-    expect(out.indexOf("TPL-999]")).toBeLessThan(out.indexOf("TPL-1000]"));
+    expect(pos(out, "TPL-999]")).toBeLessThan(pos(out, "TPL-1000]"));
   });
 
   it("omits topics with no active TPL and appends unknown topics alphabetically", () => {
