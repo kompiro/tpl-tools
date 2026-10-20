@@ -32,11 +32,16 @@ function origins(tpl: ParsedTpl): string[] {
   return entries.flatMap((e) => (e && typeof e.issue === "string" ? [e.issue] : []));
 }
 
-function entryLine(tpl: ParsedTpl, opts: RenderIndexOptions): string {
-  const href = relative(dirname(opts.indexPath), join(opts.tplDir, tpl.file)).split(sep).join("/");
-  const title = String(tpl.fm.title ?? "")
+/** One line of text: a multi-line YAML value would otherwise break the list or heading. */
+function oneLine(value: unknown): string {
+  return String(value ?? "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function entryLine(tpl: ParsedTpl, opts: RenderIndexOptions): string {
+  const href = relative(dirname(opts.indexPath), join(opts.tplDir, tpl.file)).split(sep).join("/");
+  const title = oneLine(tpl.fm.title);
   const from = origins(tpl);
   const suffix = from.length > 0 ? ` (${from.join(", ")})` : "";
   return `- [${tpl.fm.id}](${href}) — ${title}${suffix}`;
@@ -66,7 +71,7 @@ export function renderIndex(parsed: readonly ParsedTpl[], opts: RenderIndexOptio
       deprecated.push(tpl);
       continue;
     }
-    const topic = typeof tpl.fm.topic === "string" && tpl.fm.topic !== "" ? tpl.fm.topic : "(none)";
+    const topic = (typeof tpl.fm.topic === "string" && oneLine(tpl.fm.topic)) || "(none)";
     const list = byTopic.get(topic);
     if (list) list.push(tpl);
     else byTopic.set(topic, [tpl]);

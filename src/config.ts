@@ -148,10 +148,10 @@ export function loadReferenceData(path?: string): ReferenceData {
     // does not.
     if (/^TPL-[^/]*\.md$/.test(posix.normalize(raw))) {
       throw new ReferenceDataInvalidError(
-        `${path}: "indexFile" must not be named like a TPL (TPL-*.md), got ${JSON.stringify(obj.indexFile)}`,
+        `${path}: "indexFile" must not be named like a TPL (TPL-*.md), got ${JSON.stringify(raw)}`,
       );
     }
-    indexFile = obj.indexFile;
+    indexFile = raw;
   }
 
   return indexFile === undefined

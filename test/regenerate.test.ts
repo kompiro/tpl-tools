@@ -112,6 +112,11 @@ describe("renderIndex", () => {
     expect(out).toContain("- [TPL-5](TPL-5-x.md) — a wrapped title (#5, #4)");
   });
 
+  it("keeps a multi-line topic on its heading line", () => {
+    const out = renderIndex([makeTpl({ id: "TPL-1", topic: "app\n  ui" })], OPTS);
+    expect(out).toContain("\n### app ui\n");
+  });
+
   it("links relative to the index file's directory", () => {
     const out = renderIndex([makeTpl({ id: "TPL-1", topic: "renderer" })], {
       ...OPTS,
