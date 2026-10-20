@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, posix, resolve } from "node:path";
 
 /** Default reference-data filename looked up in the working directory. */
 export const CONFIG_FILENAME = "tpl.config.json";
@@ -134,8 +134,10 @@ export function loadReferenceData(path?: string): ReferenceData {
       );
     }
     // The TPL directory's own `TPL-*.md` files are read as TPLs, so an index
-    // there under such a name would be validated as one.
-    if (/^TPL-.*\.md$/.test(obj.indexFile)) {
+    // there under such a name would be validated as one. Normalize first so
+    // `./TPL-x.md` counts as directly in the directory and `TPL-x/index.md`
+    // does not.
+    if (/^TPL-[^/]*\.md$/.test(posix.normalize(obj.indexFile.replace(/\\/g, "/")))) {
       throw new ReferenceDataInvalidError(
         `${path}: "indexFile" must not be named like a TPL (TPL-*.md), got ${JSON.stringify(obj.indexFile)}`,
       );

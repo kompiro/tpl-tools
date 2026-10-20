@@ -227,6 +227,15 @@ describe("regenerate CLI", () => {
     expect(err).toContain("cannot read");
   });
 
+  it("validate reports an index it may not read as unreadable, not missing", () => {
+    // existsSync() is false on EACCES / ELOOP too; a symlink loop gives ELOOP
+    // on any platform and user.
+    symlinkSync(join(dir(), "index.md"), join(dir(), "index.md"));
+    expect(validate()).toBe(1);
+    expect(err).toContain("index.md: cannot read the index file");
+    expect(err).not.toContain("index file not found");
+  });
+
   it("validate reports an index path that cannot be read, rather than crashing", () => {
     mkdirSync(join(dir(), "index.md"));
     expect(validate()).toBe(1);

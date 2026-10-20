@@ -1,11 +1,4 @@
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, lstatSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   CONFIG_FILENAME,
@@ -14,7 +7,7 @@ import {
   resolveConfigPath,
 } from "../config.ts";
 import { renderIndex } from "../regenerate.ts";
-import { loadAllTpls } from "../validate.ts";
+import { loadAllTpls, readIfPresent } from "../validate.ts";
 import { parseFlags } from "./args.ts";
 
 const HELP = `usage: tpl regenerate [options]
@@ -118,9 +111,7 @@ export function main(argv: readonly string[]): number {
   // holds CRLF, and that alone does not make the index stale.
   let current: string | undefined;
   try {
-    current = existsSync(indexPath)
-      ? readFileSync(indexPath, "utf8").replace(/\r\n/g, "\n")
-      : undefined;
+    current = readIfPresent(indexPath)?.replace(/\r\n/g, "\n");
   } catch (e) {
     process.stderr.write(`error: cannot read ${shown}: ${(e as Error).message}\n`);
     return 2;

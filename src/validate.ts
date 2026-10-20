@@ -310,6 +310,21 @@ export function validateRelatedTo(parsed: readonly ParsedTpl[]): Finding[] {
   return findings;
 }
 
+/**
+ * Read a file, or return `undefined` when nothing is there. Any other failure
+ * (permission, a directory at the path, a symlink loop) is thrown: `existsSync`
+ * would report those as "missing" too, which hides the real problem.
+ */
+export function readIfPresent(path: string): string | undefined {
+  try {
+    return readFileSync(path, "utf8");
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return undefined;
+    throw e;
+  }
+}
+
 interface ReadmeIndexCheckResult {
   findings: Finding[];
   rowIds: Set<string>;
@@ -454,18 +469,21 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
 
   if (opts.indexPath !== undefined) {
     const index = basename(opts.indexPath);
-    if (!existsSync(opts.indexPath)) {
+    let content: string | undefined;
+    let unreadable: string | undefined;
+    try {
+      content = readIfPresent(opts.indexPath);
+    } catch (e) {
+      unreadable = (e as Error).message;
+    }
+    if (unreadable !== undefined) {
+      findings.push({ kind: "index-unreadable", index, message: unreadable });
+    } else if (content === undefined) {
       findings.push({ kind: "index-missing", index });
     } else {
-      try {
-        const content = readFileSync(opts.indexPath, "utf8");
-        // `tpl regenerate` writes links relative to the index's own directory.
-        const baseDir = dirname(opts.indexPath);
-        findings.push(...validateReadmeIndex(content, parsed, baseDir, idFormat, index).findings);
-      } catch (e) {
-        // e.g. the path is a directory.
-        findings.push({ kind: "index-unreadable", index, message: (e as Error).message });
-      }
+      // `tpl regenerate` writes links relative to the index's own directory.
+      const baseDir = dirname(opts.indexPath);
+      findings.push(...validateReadmeIndex(content, parsed, baseDir, idFormat, index).findings);
     }
   } else if (opts.readmePath && existsSync(opts.readmePath)) {
     const readme = readFileSync(opts.readmePath, "utf8");
