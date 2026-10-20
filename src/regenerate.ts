@@ -43,13 +43,15 @@ function entryLine(tpl: ParsedTpl, opts: RenderIndexOptions): string {
 }
 
 function section(heading: string, tpls: readonly ParsedTpl[], opts: RenderIndexOptions): string[] {
-  return ["", `## ${heading}`, "", ...[...tpls].sort(compareIds).map((t) => entryLine(t, opts))];
+  return ["", heading, "", ...[...tpls].sort(compareIds).map((t) => entryLine(t, opts))];
 }
 
 /**
- * Render the TPL index: one `## <topic>` section per topic that has an active
- * TPL, then a `## Deprecated` section. Every TPL appears exactly once, so the
- * output also satisfies `tpl validate`'s index check.
+ * Render the TPL index: under `## Active`, one `### <topic>` section per topic
+ * that has an active TPL, then a `## Deprecated` section. Topics sit one level
+ * below, so a topic named `Deprecated` cannot be mistaken for that section.
+ * Every TPL appears exactly once, so the output also satisfies `tpl validate`'s
+ * index check.
  *
  * Grouping is what keeps concurrent branches apart: ids grow monotonically, so
  * a single list puts every new entry at the same tail and two branches adding
@@ -74,11 +76,15 @@ export function renderIndex(parsed: readonly ParsedTpl[], opts: RenderIndexOptio
   const rest = [...byTopic.keys()].filter((t) => !opts.topics.includes(t)).sort();
 
   const lines = [...HEADER];
-  for (const topic of [...known, ...rest]) {
-    lines.push(...section(topic, byTopic.get(topic)!, opts));
+  const topics = [...known, ...rest];
+  if (topics.length > 0) {
+    lines.push("", "## Active");
+    for (const topic of topics) {
+      lines.push(...section(`### ${topic}`, byTopic.get(topic)!, opts));
+    }
   }
   if (deprecated.length > 0) {
-    lines.push(...section("Deprecated", deprecated, opts));
+    lines.push(...section("## Deprecated", deprecated, opts));
   }
   return `${lines.join("\n")}\n`;
 }

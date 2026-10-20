@@ -46,10 +46,35 @@ describe("renderIndex", () => {
       ],
       OPTS,
     );
-    const headings = out.split("\n").filter((l) => l.startsWith("## "));
-    expect(headings).toEqual(["## renderer", "## app-ui", "## Deprecated"]);
+    const headings = out.split("\n").filter((l) => /^##+ /.test(l));
+    expect(headings).toEqual(["## Active", "### renderer", "### app-ui", "## Deprecated"]);
     expect(out).toContain("- [TPL-20](TPL-20-x.md) — title of TPL-20 (#20)");
     expect(out.indexOf("TPL-10")).toBeGreaterThan(out.indexOf("## Deprecated"));
+  });
+
+  it("keeps a topic named Deprecated apart from the deprecated section", () => {
+    const out = renderIndex(
+      [
+        makeTpl({ id: "TPL-1", topic: "Deprecated" }),
+        makeTpl({ id: "TPL-2", topic: "renderer", status: "deprecated" }),
+      ],
+      OPTS,
+    );
+    const headings = out.split("\n").filter((l) => /^##+ /.test(l));
+    expect(headings).toEqual(["## Active", "### Deprecated", "## Deprecated"]);
+    // Search from a line start: "## Deprecated" also occurs inside "### Deprecated".
+    const deprecatedSection = out.indexOf("\n## Deprecated");
+    expect(out.indexOf("TPL-1]")).toBeLessThan(deprecatedSection);
+    expect(out.indexOf("TPL-2]")).toBeGreaterThan(deprecatedSection);
+  });
+
+  it("omits the Active heading when every TPL is deprecated", () => {
+    const out = renderIndex(
+      [makeTpl({ id: "TPL-1", topic: "renderer", status: "deprecated" })],
+      OPTS,
+    );
+    expect(out).not.toContain("## Active");
+    expect(out).toContain("## Deprecated");
   });
 
   it("sorts ids numerically within a section", () => {
@@ -68,8 +93,8 @@ describe("renderIndex", () => {
       [makeTpl({ id: "TPL-2", topic: "zeta" }), makeTpl({ id: "TPL-1", topic: "alpha" })],
       OPTS,
     );
-    const headings = out.split("\n").filter((l) => l.startsWith("## "));
-    expect(headings).toEqual(["## alpha", "## zeta"]);
+    const headings = out.split("\n").filter((l) => /^##+ /.test(l));
+    expect(headings).toEqual(["## Active", "### alpha", "### zeta"]);
   });
 
   it("collapses whitespace in titles and lists every issue origin", () => {
@@ -178,7 +203,7 @@ describe("regenerate CLI", () => {
     expect(regenerate()).toBe(0);
     expect(out).toContain("Wrote docs/test-perspectives/index.md.");
     const first = index();
-    expect(first).toContain("## testing");
+    expect(first).toContain("### testing");
     expect(first).toContain("- [TPL-1](TPL-1-perspective.md) — perspective TPL-1 (#1)");
 
     out = "";

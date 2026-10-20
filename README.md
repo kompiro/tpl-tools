@@ -77,8 +77,9 @@ tpl validate [--tpl-dir <path>] [--config <path>] [--packages-root <path>]
 ```
 
 - `--tpl-dir` — directory of TPL files (default `docs/test-perspectives`)
-- `--config` — JSON file holding `topics` (controlled vocabulary, optional)
-  and `idFormat` (optional, see below). Defaults to `tpl.config.json` in CWD
+- `--config` — JSON file holding `topics` (controlled vocabulary, optional),
+  `idFormat` (optional, see below) and `indexFile` (optional, see
+  [`tpl regenerate`](#tpl-regenerate)). Defaults to `tpl.config.json` in CWD
   when present; **omit and provide no `tpl.config.json` to skip topic
   validation and use the default id format.**
 - `--packages-root` — directory whose immediate subdirectories are the allowed
@@ -128,8 +129,9 @@ stands for. It reaches the next line only, never across a blank line or into a
 fenced block.
 
 Checks are per-file (frontmatter shape, filename ↔ id, controlled
-vocabularies) and cross-file (id uniqueness, `related_to` resolution, README
-index consistency). The id-uniqueness check exists because ids minted on
+vocabularies) and cross-file (id uniqueness, `related_to` resolution, and the
+index: the file named by `indexFile`, or `README.md` without it, must link
+every TPL to an existing file). The id-uniqueness check exists because ids minted on
 concurrent branches can collide — e.g. two branches created the same day both
 see `TPL-YYYYMMDD-01` as free — and each file is internally consistent, so
 only a cross-file view detects it once both files land in one tree.
@@ -165,10 +167,11 @@ tpl regenerate [--check] [--tpl-dir <path>] [--config <path>]
 Writes the TPL index to the file named by `indexFile` in the config (relative
 to the TPL directory, and inside it: `/` separators only, no absolute path, no
 `..`, no symlink leading out; not named `TPL-*.md` directly in it, since that
-would be read as a TPL). Active TPLs are grouped under one `## <topic>` heading
-per topic, in the order of the `topics` vocabulary (topics outside it follow
-alphabetically), sorted by id within a section; deprecated TPLs follow under
-`## Deprecated`. Each entry links the TPL and lists its `discovered_from`
+would be read as a TPL). Active TPLs go under `## Active`, one `### <topic>`
+heading per topic, in the order of the `topics` vocabulary (topics outside it
+follow alphabetically), sorted by id within a topic; deprecated TPLs follow
+under `## Deprecated`. The two heading levels keep a topic that happens to be
+named `Deprecated` apart from the deprecated section. Each entry links the TPL and lists its `discovered_from`
 issues.
 
 ```json
