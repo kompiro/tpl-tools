@@ -90,12 +90,21 @@ describe("loadReferenceData", () => {
     }
   });
 
+  it("rejects a backslash or a trailing slash, so the path reads the same on every platform", () => {
+    // On POSIX `TPL-foo\\bar.md` is one file directly in the TPL directory; on
+    // Windows it is a file in `TPL-foo/`. Neither reading is allowed.
+    for (const indexFile of ["TPL-foo\\bar.md", ".\\TPL-index.md", "gen\\index.md", "gen/"]) {
+      const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile }));
+      expect(() => loadReferenceData(path)).toThrow(/with "\/" separators/);
+    }
+  });
+
   it("rejects an indexFile named like a TPL, which validate would read as one", () => {
     for (const indexFile of [
       "TPL-index.md",
       "./TPL-index.md",
       "././TPL-index.md",
-      ".\\TPL-index.md",
+      ".//TPL-index.md",
     ]) {
       const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile }));
       expect(() => loadReferenceData(path)).toThrow(/named like a TPL/);

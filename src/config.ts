@@ -126,18 +126,27 @@ export function loadReferenceData(path?: string): ReferenceData {
         `${path}: "indexFile" must be a non-empty string, got ${JSON.stringify(obj.indexFile)}`,
       );
     }
-    // `tpl regenerate` writes this file, so it must not reach outside the TPL
-    // directory.
-    if (isAbsolute(obj.indexFile) || obj.indexFile.split(/[\\/]/).includes("..")) {
+    // `tpl regenerate` writes this file, so it must stay inside the TPL
+    // directory. Accept one spelling only, a relative path with `/`
+    // separators: a backslash is a separator on Windows but a filename
+    // character on POSIX, and the checks below would differ by platform.
+    const raw = obj.indexFile;
+    if (
+      raw.includes("\\") ||
+      raw.startsWith("/") ||
+      raw.endsWith("/") ||
+      isAbsolute(raw) ||
+      raw.split("/").includes("..")
+    ) {
       throw new ReferenceDataInvalidError(
-        `${path}: "indexFile" must be a path inside the TPL directory, got ${JSON.stringify(obj.indexFile)}`,
+        `${path}: "indexFile" must be a file path inside the TPL directory, relative and with "/" separators (no "\\", no leading or trailing "/", no ".."), got ${JSON.stringify(raw)}`,
       );
     }
     // The TPL directory's own `TPL-*.md` files are read as TPLs, so an index
     // there under such a name would be validated as one. Normalize first so
     // `./TPL-x.md` counts as directly in the directory and `TPL-x/index.md`
     // does not.
-    if (/^TPL-[^/]*\.md$/.test(posix.normalize(obj.indexFile.replace(/\\/g, "/")))) {
+    if (/^TPL-[^/]*\.md$/.test(posix.normalize(raw))) {
       throw new ReferenceDataInvalidError(
         `${path}: "indexFile" must not be named like a TPL (TPL-*.md), got ${JSON.stringify(obj.indexFile)}`,
       );

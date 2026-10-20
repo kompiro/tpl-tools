@@ -23,12 +23,14 @@
       "minLength": 1,
       "not": {
         "anyOf": [
-          { "pattern": "^[\\\\/]" },
-          { "pattern": "(^|[\\\\/])\\.\\.([\\\\/]|$)" },
-          { "pattern": "^(\\.[\\\\/])*TPL-[^\\\\/]*\\.md$" }
+          { "pattern": "\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "/$" },
+          { "pattern": "(^|/)\\.\\.(/|$)" },
+          { "pattern": "^(\\./+)*TPL-[^/]*\\.md$" }
         ]
       },
-      "description": "Generated index file, relative to the TPL directory and inside it (no absolute path, no `..`, and not named `TPL-*.md` directly in it, which would be read as a TPL) (e.g. `index.md`). When set, `tpl regenerate` writes it, grouped by topic, and `tpl validate` checks it instead of README.md. Omit to keep a hand-maintained README index."
+      "description": "Generated index file, relative to the TPL directory and inside it, with `/` separators (no backslash, no leading or trailing `/`, no `..`), and not named `TPL-*.md` directly in it, which would be read as a TPL (e.g. `index.md`). When set, `tpl regenerate` writes it, grouped by topic, and `tpl validate` checks it instead of README.md. Omit to keep a hand-maintained README index."
     }
   }
 }
