@@ -12,13 +12,15 @@ import { parseFlags } from "./args.ts";
 const HELP = `usage: tpl validate [options]
 
 Validate TPL frontmatter, filename conventions, cross-references, and the
-README index.
+index: the file named by "indexFile" in the config, or README.md without it.
 
 Options:
   --tpl-dir <path>         TPL directory (default: docs/test-perspectives)
   --config <path>          JSON file holding "topics" (controlled vocabulary,
-                           optional) and "idFormat" ("date-sequence" |
-                           "issue-number", default "date-sequence").
+                           optional), "idFormat" ("date-sequence" |
+                           "issue-number", default "date-sequence") and
+                           "indexFile" (the generated index to check instead
+                           of README.md, optional).
                            Defaults to ${CONFIG_FILENAME} in CWD when present;
                            omit and provide no ${CONFIG_FILENAME} to skip topic
                            validation and use the default id format.
@@ -96,6 +98,7 @@ export function main(argv: readonly string[]): number {
     validTopics: refData.topics,
     validPackages,
     readmePath,
+    ...(refData.indexFile === undefined ? {} : { indexPath: join(tplDir, refData.indexFile) }),
     idFormat: refData.idFormat,
     sourcePrefixes,
     repoRoot: cwd,

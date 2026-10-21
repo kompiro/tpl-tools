@@ -25,6 +25,7 @@ export {
   type Status,
 } from "./validate.ts";
 export { findRelated, formatRelatedAsMarkdown } from "./related.ts";
+export { renderIndex } from "./regenerate.ts";
 export { renderReviewBody, type ReviewBodyOptions } from "./review-body.ts";
 export {
   ABSENT_PATH_MARKER,

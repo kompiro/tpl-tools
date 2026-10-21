@@ -69,6 +69,66 @@ describe("loadReferenceData", () => {
     expect(() => loadReferenceData(path)).toThrow(/idFormat/);
   });
 
+  it("reads indexFile, and leaves it unset when omitted", () => {
+    const set = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile: "index.md" }));
+    expect(loadReferenceData(set).indexFile).toBe("index.md");
+    const unset = tmpFile("ref.json", JSON.stringify({ topics: [] }));
+    expect(loadReferenceData(unset).indexFile).toBeUndefined();
+  });
+
+  it("rejects an empty or non-string indexFile", () => {
+    for (const indexFile of ["", 1]) {
+      const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile }));
+      expect(() => loadReferenceData(path)).toThrow(/indexFile/);
+    }
+  });
+
+  it("rejects an indexFile that reaches outside the TPL directory", () => {
+    for (const indexFile of ["../index.md", "a/../../index.md", "/tmp/index.md"]) {
+      const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile }));
+      expect(() => loadReferenceData(path)).toThrow(/inside the TPL directory/);
+    }
+  });
+
+  it("rejects a backslash or a trailing slash, so the path reads the same on every platform", () => {
+    // On POSIX `TPL-foo\\bar.md` is one file directly in the TPL directory; on
+    // Windows it is a file in `TPL-foo/`. Neither reading is allowed.
+    for (const indexFile of ["TPL-foo\\bar.md", ".\\TPL-index.md", "gen\\index.md", "gen/"]) {
+      const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile }));
+      expect(() => loadReferenceData(path)).toThrow(/with "\/" separators/);
+    }
+  });
+
+  it("rejects an indexFile named like a TPL, which validate would read as one", () => {
+    for (const indexFile of [
+      "TPL-index.md",
+      "./TPL-index.md",
+      "././TPL-index.md",
+      ".//TPL-index.md",
+    ]) {
+      const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile }));
+      expect(() => loadReferenceData(path)).toThrow(/named like a TPL/);
+    }
+  });
+
+  it("accepts an index under a directory whose name starts with TPL-", () => {
+    const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile: "TPL-gen/index.md" }));
+    expect(loadReferenceData(path).indexFile).toBe("TPL-gen/index.md");
+  });
+
+  it("accepts a TPL-like name in a subdirectory, which TPL discovery does not scan", () => {
+    const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile: "gen/TPL-index.md" }));
+    expect(loadReferenceData(path).indexFile).toBe("gen/TPL-index.md");
+  });
+
+  it("accepts an indexFile in a subdirectory of the TPL directory", () => {
+    const path = tmpFile(
+      "ref.json",
+      JSON.stringify({ topics: [], indexFile: "generated/index.md" }),
+    );
+    expect(loadReferenceData(path).indexFile).toBe("generated/index.md");
+  });
+
   it("throws when the file does not exist", () => {
     expect(() => loadReferenceData("/no/such/file.json")).toThrow(ReferenceDataMissingError);
   });
