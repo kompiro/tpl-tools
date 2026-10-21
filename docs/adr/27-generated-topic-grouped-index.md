@@ -68,11 +68,13 @@ new `indexFile` key in `tpl.config.json`, grouped by topic, and have
 ## Rationale
 
 - **Grouping is what separates concurrent branches.** Two branches that add a
-  TPL to different topics insert at different, non-adjacent lines, which git
-  merges cleanly. They conflict only within one topic. On karasu's last month
+  TPL to different, existing topics insert at different, non-adjacent lines,
+  which git merges cleanly. They conflict when both add to the same topic, or,
+  rarely, when one opens a new topic at the boundary the other appends to (see
+  Consequences). On karasu's last month
   (half the new TPLs were `renderer`), that is about 30% of concurrent pairs
-  against about 100% for one table, and the four PRs open on 2026-10-19 would
-  not have conflicted at all. Verified in a scratch repo: `renderer` +
+  against about 100% for one table, and the four TPL-adding PRs open on
+  2026-10-19 each added to a different existing topic. Verified in a scratch repo: `renderer` +
   `build` merged cleanly, `renderer` + `renderer` conflicted.
 - **Generating makes the remaining conflicts mechanical.** A conflict in the
   index is resolved by re-running `tpl regenerate`, never by hand; `--check`
@@ -124,7 +126,7 @@ a TPL.
 - **Not committing an index at all** (list TPLs from `tpl related` or a docs
   site). No conflicts, but the corpus is no longer browsable on GitHub, and
   `validate` loses its "every TPL is listed" check.
-- **One generated, id-sorted list.** Mechanical to resolve, but every pair of
+- **One generated, id-sorted list.** Mechanical to resolve, but every pair of TPL-adding
   concurrent PRs still conflicts at the tail.
 - **A default `indexFile` name.** Convenient for `regenerate`, but `validate`
   would keep reading the README until the key is set, so the two would check
