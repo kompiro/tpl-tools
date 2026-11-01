@@ -71,7 +71,9 @@ An item is *unguarded* when it has no marker or a malformed one.
 | `unguarded` | no guard, at least one unguarded item |
 | `judgment` | every item is `[judgment]` |
 
-A malformed marker counts as unguarded because it claims nothing a reader can rely on. The display commands take no
+A malformed marker counts as unguarded because it claims nothing a reader can rely on. A checklist with no item has no status; `tpl validate` rejects it, and the display
+commands show it as `no checklist items`. Deprecated TPLs get no status in the
+generated index, since they are no longer applied. The display commands take no
 `--source-prefix`, so they read marker syntax only.
 
 ## Rationale
