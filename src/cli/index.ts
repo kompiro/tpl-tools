@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { main as runChecklist } from "./checklist.ts";
 import { main as runInit } from "./init.ts";
 import { main as runRegenerate } from "./regenerate.ts";
 import { main as runRelated } from "./related.ts";
@@ -12,6 +13,7 @@ Subcommands:
   validate       validate TPL frontmatter, filenames, cross-refs, the index
   regenerate     write the topic-grouped TPL index named by "indexFile"
   related        list active TPLs matching a topic (markdown for Design Docs)
+  checklist      list checklist items with their markers (guard, judgment, ...)
   review-body    print the body for a periodic TPL deprecation-review Issue
 
 Run \`tpl <subcommand> --help\` for subcommand-specific options.`;
@@ -38,6 +40,8 @@ function main(): number {
       return runRegenerate(subArgv);
     case "related":
       return runRelated(subArgv);
+    case "checklist":
+      return runChecklist(subArgv);
     case "review-body":
       return runReviewBody(subArgv);
     default:

@@ -42,13 +42,15 @@ tpl <subcommand> [options]
   validate       validate TPL frontmatter, filenames, cross-refs, the index
   regenerate     write the topic-grouped TPL index named by "indexFile"
   related        list active TPLs matching a topic (markdown for Design Docs)
+  checklist      list checklist items with their markers (guard, judgment, ...)
   review-body    print the body for a periodic TPL deprecation-review issue
 ```
 
 ### Configuration (`tpl.config.json`)
 
-`tpl` reads reference data — the controlled `topics` vocabulary, the
-`idFormat`, and the optional `indexFile` — from a JSON file. Resolution order:
+`tpl` reads reference data (the controlled `topics` vocabulary, the
+`idFormat`, and the optional `indexFile` and `checklistHeading`) from a JSON
+file. Resolution order:
 
 1. an explicit `--config <path>` (highest priority)
 2. `tpl.config.json` in the working directory, when present
@@ -78,8 +80,9 @@ tpl validate [--tpl-dir <path>] [--config <path>] [--packages-root <path>]
 
 - `--tpl-dir` — directory of TPL files (default `docs/test-perspectives`)
 - `--config` — JSON file holding `topics` (controlled vocabulary, optional),
-  `idFormat` (optional, see below) and `indexFile` (optional, see
-  [`tpl regenerate`](#tpl-regenerate)). Defaults to `tpl.config.json` in CWD
+  `idFormat` (optional, see below), `indexFile` (optional, see
+  [`tpl regenerate`](#tpl-regenerate)) and `checklistHeading` (optional, see
+  [Checklist markers](#checklist-markers-and-enforcement-status)). Defaults to `tpl.config.json` in CWD
   when present; **omit and provide no `tpl.config.json` to skip topic
   validation and use the default id format.**
 - `--packages-root` — directory whose immediate subdirectories are the allowed
@@ -128,6 +131,66 @@ next line fully resolves is itself a finding, so it cannot outlive the claim it
 stands for. It reaches the next line only, never across a blank line or into a
 fenced block.
 
+#### Checklist markers and enforcement status
+
+A checklist mixes items that CI already enforces with items that rely on a
+reader remembering the TPL, and the body does not tell them apart. Set
+`checklistHeading` to the heading text of the checklist section, and each item
+may end with one marker:
+
+```markdown
+## Checklist
+
+- [ ] Every new kind extends the shared base [guard: `packages/core/src/base.test.ts`]
+- [ ] The fallback was chosen against the alternatives in the ADR [judgment]
+- [ ] A new consumer reads the derived value, not the raw field
+```
+
+- `` [guard: `path`] ``: the item is enforced by the named file: a test or
+  script that goes red in CI when a **new** site violates the item, not only
+  the original bug site. Several files are separated by commas.
+- `[judgment]`: no program can decide the item.
+- no marker: the item is checkable but nothing checks it yet.
+
+```json
+{ "checklistHeading": "Checklist" }
+```
+
+With the key set, `tpl validate` requires the section in every TPL (from the
+heading to the next heading of any level, so a `###` inside it ends it), at
+least one top-level list item in it, and well-formed markers:
+
+- the marker is the last text of the item, separated by a space, with nothing
+  after it (not even a period);
+- marker syntax that an item *describes* goes in a code span, where it is not
+  read; a bracketed `[guard…` or `[judgment…` outside one must be a well-formed
+  marker at the end (the bare words "guard" and "judgment" are just prose);
+- every guard path is a file path the source-path check reads (a whole span,
+  under a `--source-prefix`, no `:line`, glob or trailing `/`), names a file
+  rather than a directory, exists, and is not under `absent-path-next-line`.
+
+An item's nested lines belong to it, so for an item with sub-items the marker
+goes after the last nested line.
+
+Since a guard that no prefix covers would pass unchecked, `tpl validate` with
+`checklistHeading` set and no `--source-prefix` is a usage error.
+
+The markers give each TPL an **enforcement status**, derived and never stored,
+so it cannot drift from the checklist:
+
+| status | meaning |
+| --- | --- |
+| `guarded` | every checkable item has a guard (and at least one does) |
+| `partial` | some checkable items have a guard |
+| `unguarded` | no item has a guard, and at least one is checkable |
+| `judgment` | every item is `[judgment]` |
+
+A malformed marker counts as unguarded. The status is shown as
+`partial 1/3, judgment 2` (guarded over checkable items, then judgment items) by
+[`tpl regenerate`](#tpl-regenerate), `tpl related --status`,
+[`tpl checklist`](#tpl-checklist) and [`tpl review-body`](#tpl-review-body).
+Those commands take no `--source-prefix`, so they read marker syntax only.
+
 Checks are per-file (frontmatter shape, filename ↔ id, controlled
 vocabularies) and cross-file (id uniqueness, `related_to` resolution, and the
 index: the file named by `indexFile`, or `README.md` without it, must link
@@ -172,7 +235,8 @@ heading per topic, in the order of the `topics` vocabulary (topics outside it
 follow alphabetically), sorted by id within a topic; deprecated TPLs follow
 under `## Deprecated`. The two heading levels keep a topic that happens to be
 named `Deprecated` apart from the deprecated section. Each entry links the TPL and lists its `discovered_from`
-issues.
+issues. With `checklistHeading` set, each active entry ends with its
+enforcement status, e.g. `- [TPL-12](TPL-12-x.md) — <title> (#12) · guarded 2/2, judgment 1`.
 
 ```json
 {
@@ -201,21 +265,49 @@ index file; the README no longer needs a row per TPL.
 
 ```
 tpl related <topic> [--package <pkg>] [--tpl-dir <path>] [--config <path>] [--path-prefix <p>]
+            [--status]
 ```
 
 Prints a markdown bullet list of active TPLs matching `<topic>`, ready to paste
-into a Design Doc's "Related TPLs" section.
+into a Design Doc's "Related TPLs" section. `--status` ends each line with the
+TPL's enforcement status (needs `checklistHeading`); it is off by default
+because the plain list is what gets pasted.
+
+### `tpl checklist`
+
+```
+tpl checklist [--marker guard|judgment|unguarded]... [--topic <topic>] [--tpl-dir <path>]
+              [--config <path>]
+```
+
+Lists the checklist items of every active TPL, one tab-separated line each:
+id, item number, marker (`guard`, `judgment`, `unguarded`, or `malformed`),
+guard paths (comma-separated, or `-`), and the item text. `--marker` keeps only
+the items with that marker (`unguarded` includes `malformed`); repeat it for
+several. Needs `checklistHeading`. Use it to see which items still depend on a
+reader, e.g. to file guard work:
+
+```sh
+tpl checklist --marker unguarded --topic parser
+```
 
 ### `tpl review-body`
 
 ```
 tpl review-body [--tpl-dir <path>] [--repo <owner/repo>] [--tpl-dir-relative <p>]
-                [--period-label <label>]
+                [--period-label <label>] [--config <path>]
 ```
 
 Prints the markdown body for a periodic TPL deprecation-review issue to stdout
 (`--repo` defaults to `$GITHUB_REPOSITORY`). Typically piped into
 `gh issue create --body-file -`.
+
+With `checklistHeading` in the config (`--config`, or `tpl.config.json` in the
+working directory), the active TPLs are grouped by enforcement status, each
+group under the question that status raises: for `unguarded` and `partial`,
+whether an unmarked item can become a guard; for `guarded`, whether the
+checklist can be thinned to what the guards do not already enforce; for
+`judgment`, whether an item has become decidable by a program.
 
 The heading names the review period. It defaults to the current ISO week
 (`YYYY-Www`), which suits a weekly cadence; on any other cadence pass
@@ -249,6 +341,11 @@ import {
   formatRelatedAsMarkdown,
   renderIndex,
   renderReviewBody,
+  extractChecklist,
+  checkChecklist,
+  deriveStatus,
+  formatStatus,
+  checklistRows,
 } from "@kompiro/tpl-tools";
 ```
 

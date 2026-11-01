@@ -76,6 +76,28 @@ describe("loadReferenceData", () => {
     expect(loadReferenceData(unset).indexFile).toBeUndefined();
   });
 
+  it("reads checklistHeading, and leaves it unset when omitted", () => {
+    const set = tmpFile("ref.json", JSON.stringify({ checklistHeading: "Checklist" }));
+    expect(loadReferenceData(set).checklistHeading).toBe("Checklist");
+    const unset = tmpFile("ref.json", JSON.stringify({ topics: [] }));
+    expect(loadReferenceData(unset)).not.toHaveProperty("checklistHeading");
+  });
+
+  it("rejects a checklistHeading that is not a heading's text on one line", () => {
+    for (const checklistHeading of [
+      "",
+      " ",
+      "## Checklist",
+      " Checklist",
+      "Checklist ",
+      "a\nb",
+      1,
+    ]) {
+      const path = tmpFile("ref.json", JSON.stringify({ checklistHeading }));
+      expect(() => loadReferenceData(path)).toThrow(/checklistHeading/);
+    }
+  });
+
   it("rejects an empty or non-string indexFile", () => {
     for (const indexFile of ["", 1]) {
       const path = tmpFile("ref.json", JSON.stringify({ topics: [], indexFile }));

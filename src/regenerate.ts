@@ -1,4 +1,5 @@
 import { dirname, join, relative, sep } from "node:path";
+import { formatStatus, statusOf } from "./checklist.ts";
 import type { ParsedTpl } from "./validate.ts";
 
 interface RenderIndexOptions {
@@ -11,6 +12,11 @@ interface RenderIndexOptions {
   tplDir: string;
   /** Path of the index file being rendered; links are relative to its directory. */
   indexPath: string;
+  /**
+   * Heading of the checklist section. When set, each active entry ends with
+   * the enforcement status derived from its checklist markers.
+   */
+  checklistHeading?: string;
 }
 
 const HEADER = [
@@ -39,16 +45,32 @@ function oneLine(value: unknown): string {
     .trim();
 }
 
-function entryLine(tpl: ParsedTpl, opts: RenderIndexOptions): string {
+function entryLine(tpl: ParsedTpl, opts: RenderIndexOptions, withStatus: boolean): string {
   const href = relative(dirname(opts.indexPath), join(opts.tplDir, tpl.file)).split(sep).join("/");
   const title = oneLine(tpl.fm.title);
   const from = origins(tpl);
   const suffix = from.length > 0 ? ` (${from.join(", ")})` : "";
-  return `- [${tpl.fm.id}](${href}) — ${title}${suffix}`;
+  // Syntax only: `regenerate` takes no source prefixes, so a malformed marker
+  // counts as unguarded here and `tpl validate` reports it.
+  const status =
+    withStatus && opts.checklistHeading !== undefined
+      ? ` · ${formatStatus(statusOf(tpl.body, opts.checklistHeading, { frontmatter: false }))}`
+      : "";
+  return `- [${tpl.fm.id}](${href}) — ${title}${suffix}${status}`;
 }
 
-function section(heading: string, tpls: readonly ParsedTpl[], opts: RenderIndexOptions): string[] {
-  return ["", heading, "", ...[...tpls].sort(compareIds).map((t) => entryLine(t, opts))];
+function section(
+  heading: string,
+  tpls: readonly ParsedTpl[],
+  opts: RenderIndexOptions,
+  withStatus: boolean,
+): string[] {
+  return [
+    "",
+    heading,
+    "",
+    ...[...tpls].sort(compareIds).map((t) => entryLine(t, opts, withStatus)),
+  ];
 }
 
 /**
@@ -87,11 +109,13 @@ export function renderIndex(parsed: readonly ParsedTpl[], opts: RenderIndexOptio
   if (topics.length > 0) {
     lines.push("", "## Active");
     for (const topic of topics) {
-      lines.push(...section(`### ${topic}`, byTopic.get(topic)!, opts));
+      lines.push(...section(`### ${topic}`, byTopic.get(topic)!, opts, true));
     }
   }
   if (deprecated.length > 0) {
-    lines.push(...section("## Deprecated", deprecated, opts));
+    // A deprecated TPL is no longer applied, so how much of it CI enforces is
+    // not a question the index needs to answer.
+    lines.push(...section("## Deprecated", deprecated, opts, false));
   }
   return `${lines.join("\n")}\n`;
 }

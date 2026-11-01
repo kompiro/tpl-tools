@@ -1,3 +1,4 @@
+import { formatStatus, statusOf } from "./checklist.ts";
 import type { ParsedTpl, Status } from "./validate.ts";
 
 interface RelatedFilter {
@@ -28,6 +29,12 @@ interface FormatOptions {
    * in GitHub regardless of where the consuming markdown lives.
    */
   pathPrefix?: string;
+  /**
+   * Heading of the checklist section. When given, each line ends with the
+   * enforcement status derived from the TPL's checklist markers. Off by
+   * default: the plain list is what gets pasted into a Design Doc.
+   */
+  statusHeading?: string;
 }
 
 /**
@@ -40,5 +47,14 @@ export function formatRelatedAsMarkdown(
 ): string {
   const prefix = options.pathPrefix ?? "docs/test-perspectives/";
   if (matched.length === 0) return "";
-  return matched.map((p) => `- [${p.fm.id}](${prefix}${p.file}) — ${p.fm.title}`).join("\n");
+  const heading = options.statusHeading;
+  return matched
+    .map((p) => {
+      const status =
+        heading === undefined
+          ? ""
+          : ` · ${formatStatus(statusOf(p.body, heading, { frontmatter: false }))}`;
+      return `- [${p.fm.id}](${prefix}${p.file}) — ${p.fm.title}${status}`;
+    })
+    .join("\n");
 }

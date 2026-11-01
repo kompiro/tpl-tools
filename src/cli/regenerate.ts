@@ -19,8 +19,9 @@ in the index.
 Options:
   --check            Write nothing; exit 1 when the index is missing or stale
   --tpl-dir <path>   TPL directory (default: docs/test-perspectives)
-  --config <path>    JSON file holding "indexFile" (required) and "topics"
-                     (section order). Defaults to ${CONFIG_FILENAME} in CWD
+  --config <path>    JSON file holding "indexFile" (required), "topics"
+                     (section order) and "checklistHeading" (optional; adds
+                     each TPL's enforcement status to its entry). Defaults to ${CONFIG_FILENAME} in CWD
                      when present.
   -h, --help         Show this help`;
 
@@ -106,6 +107,9 @@ export function main(argv: readonly string[]): number {
     topics: refData.topics,
     tplDir,
     indexPath,
+    ...(refData.checklistHeading === undefined
+      ? {}
+      : { checklistHeading: refData.checklistHeading }),
   });
   // Compare with LF line endings: a Windows checkout under core.autocrlf
   // holds CRLF, and that alone does not make the index stale.

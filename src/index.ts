@@ -9,6 +9,24 @@ export {
   type IdFormat,
   type ReferenceData,
 } from "./config.ts";
+export {
+  checkChecklist,
+  checklistRows,
+  deriveStatus,
+  ENFORCEMENT_STATUSES,
+  extractChecklist,
+  formatStatus,
+  statusOf,
+  type Checklist,
+  type ChecklistFinding,
+  type ChecklistItem,
+  type ChecklistRow,
+  type EnforcementStatus,
+  type GuardSpan,
+  type Marker,
+  type RowMarker,
+  type StatusCounts,
+} from "./checklist.ts";
 export { runInit, type InitResult } from "./init.ts";
 export {
   formatFinding,
