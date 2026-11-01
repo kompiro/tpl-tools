@@ -42,6 +42,9 @@ enforcement status derived from the markers and never stored: `guarded`, `partia
 
 ## Markers and what validate checks
 
+- `checklistHeading` is the heading's text: a non-empty string on one line, without
+  `#` and without surrounding space. `loadReferenceData` rejects anything else, since
+  the value is compared with a heading's text as written.
 - The section runs from the first heading whose text equals `checklistHeading` to
   the next heading of any level, so a `###` inside it ends it. It must exist and
   hold at least one top-level list item (`- [ ]`, `-` or numbered, at column 0,
@@ -50,19 +53,24 @@ enforcement status derived from the markers and never stored: `guarded`, `partia
   it. Marker syntax inside a code span is not read. A bracketed `[guard…` or
   `[judgment…` anywhere else must be a well-formed marker at the end; the bare
   words are prose.
+- A guard names one or more files, each in its own code span, separated by commas:
+  `` [guard: `a.test.ts`] `` or `` [guard: `a.test.ts`, `b.ts`] ``. Every listed
+  path is checked on its own.
 - Every guard path must be a path the ADR-17 source-path check reads (a whole code
   span under a `--source-prefix`, no `:line`, glob or trailing `/`), must exist as a
   file, and must not sit under `absent-path-next-line`. Setting the key without
   `--source-prefix` is a usage error.
 
+An item is *unguarded* when it has no marker or a malformed one.
+
 | status | condition |
 | --- | --- |
-| `guarded` | no unmarked item, at least one guard |
-| `partial` | at least one guard and at least one unmarked item |
-| `unguarded` | no guard, at least one unmarked item |
+| `guarded` | no unguarded item, at least one guard |
+| `partial` | at least one guard and at least one unguarded item |
+| `unguarded` | no guard, at least one unguarded item |
 | `judgment` | every item is `[judgment]` |
 
-A malformed marker counts as unguarded. The display commands take no
+A malformed marker counts as unguarded because it claims nothing a reader can rely on. The display commands take no
 `--source-prefix`, so they read marker syntax only.
 
 ## Rationale
