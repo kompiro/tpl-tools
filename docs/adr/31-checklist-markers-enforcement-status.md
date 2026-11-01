@@ -58,8 +58,9 @@ enforcement status derived from the markers and never stored: `guarded`, `partia
   path is checked on its own.
 - Every guard path must be a path the ADR-17 source-path check reads (a whole code
   span under a `--source-prefix`, no `:line`, glob or trailing `/`), must exist as a
-  file, and must not sit under `absent-path-next-line`. Setting the key without
-  `--source-prefix` is a usage error.
+  file, and must not sit under `absent-path-next-line`. Running `tpl validate` with
+  the key set and no `--source-prefix` is a usage error; the display commands do not
+  need one.
 
 An item is *unguarded* when it has no marker or a malformed one.
 
