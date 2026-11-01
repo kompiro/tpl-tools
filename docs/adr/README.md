@@ -50,6 +50,7 @@ direction.
 - [ADR-8](./8-standalone-config.md) — Give tpl its own tpl.config.json with a fallback to an explicit --config (accepted)
 - [ADR-17](./17-tpl-body-source-paths.md) — Check the source paths a TPL body names, behind a repeatable --source-prefix (accepted)
 - [ADR-27](./27-generated-topic-grouped-index.md) — Generate the TPL index grouped by topic, from a config-named indexFile (accepted)
+- [ADR-31](./31-checklist-markers-enforcement-status.md) — Mark each checklist item as guarded or judgment, and derive a TPL's enforcement status from the marks (accepted)
 
 ### infrastructure
 
