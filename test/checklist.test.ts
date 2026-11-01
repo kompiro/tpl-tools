@@ -9,7 +9,6 @@ import {
   extractChecklist,
   formatStatus,
   type ChecklistItem,
-  type Marker,
 } from "../src/checklist.ts";
 
 const H = "Checklist";
@@ -31,10 +30,6 @@ function body(items: string): string {
     "",
     "- not an item",
   ].join("\n");
-}
-
-function markers(items: string): Marker[] {
-  return extractChecklist(body(items), H)!.items.map((i) => i.marker);
 }
 
 function only(items: string): ChecklistItem {
