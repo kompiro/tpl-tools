@@ -90,7 +90,51 @@ function headingText(line: string): string | undefined {
 
 interface RawItem {
   line: number;
+  /** Width of the list marker and the space after it: the content column. */
+  width: number;
   lines: { text: string; line: number }[];
+}
+
+/** A list marker, top-level or nested, with the space after it. */
+const LIST_MARKER_RE = /^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+/;
+
+/** A line with up to `width` of its leading spaces removed. */
+function dropIndent(text: string, width: number): string {
+  let at = 0;
+  while (at < width && text[at] === " ") at++;
+  return text.slice(at);
+}
+
+/**
+ * The fence a line opens, with the content column of the item holding it, or
+ * `undefined` when the line opens none. Indentation is removed only up to the
+ * item's content column, so a fence indented four or more spaces past it is
+ * indented code, as in CommonMark; a nested list marker comes off first.
+ */
+function fenceOpener(
+  line: string,
+  itemStart: RegExpExecArray | null,
+  current: RawItem | undefined,
+): { delim: string; indent: number | undefined } | undefined {
+  let subject = line;
+  let indent: number | undefined;
+  if (itemStart !== null) {
+    indent = itemStart[0].length;
+    subject = line.slice(indent);
+  } else if (current !== undefined && line.trim() !== "" && /^\s/.test(line)) {
+    indent = current.width;
+    subject = dropIndent(line, indent);
+    const nested = LIST_MARKER_RE.exec(subject);
+    if (nested !== null) {
+      indent += nested[0].length;
+      subject = subject.slice(nested[0].length);
+    }
+  }
+  const fence = FENCE_RE.exec(subject);
+  if (fence === null) return undefined;
+  // A backtick fence's info string may not hold a backtick (see source-paths.ts).
+  if (fence[1][0] === "`" && fence[2].includes("`")) return undefined;
+  return { delim: fence[1], indent };
 }
 
 export interface ExtractOptions {
@@ -120,7 +164,9 @@ export function extractChecklist(
     start = close === -1 ? lines.length : close + 1;
   }
 
-  let openFence: { delim: string; inItem: boolean } | undefined;
+  // `indent` is the content column of the item that holds the fence, or
+  // undefined for a fence outside any item.
+  let openFence: { delim: string; indent: number | undefined } | undefined;
   let headingLine: number | undefined;
   const raw: RawItem[] = [];
   let current: RawItem | undefined;
@@ -129,35 +175,47 @@ export function extractChecklist(
   for (let i = start; i < lines.length; i++) {
     const line = lines[i];
     if (openFence !== undefined) {
-      // A fence inside an item is indented to the item's content, so its
-      // closer is read with that indentation removed.
-      const fence = FENCE_RE.exec(openFence.inItem ? line.trimStart() : line);
-      if (
-        fence !== null &&
-        fence[1][0] === openFence.delim[0] &&
-        fence[1].length >= openFence.delim.length &&
-        fence[2].trim() === ""
-      ) {
+      if (openFence.indent !== undefined && line.trim() !== "" && !/^\s/.test(line)) {
+        // A line at column 0 ends the item, and the item's fence with it, as
+        // in CommonMark; the line itself is read normally below. Without this
+        // one missing closer would hide the rest of the document.
         openFence = undefined;
+        current = undefined;
+      } else {
+        const fence = FENCE_RE.exec(
+          openFence.indent === undefined ? line : dropIndent(line, openFence.indent),
+        );
+        if (
+          fence !== null &&
+          fence[1][0] === openFence.delim[0] &&
+          fence[1].length >= openFence.delim.length &&
+          fence[2].trim() === ""
+        ) {
+          // A fenced block takes no lazy continuation, so only an indented
+          // line continues the item after it.
+          if (openFence.indent !== undefined) afterBlank = true;
+          openFence = undefined;
+        }
+        continue;
       }
-      continue;
     }
 
-    // A fence can open on an item's own line (`- ```sh`) or on an indented
-    // line inside the item; either way it belongs to the item, and the lines
-    // after it still continue the item. A fence at column 0 ends the item.
+    // A fence opens on an item's own line (`- ```sh`), on a line inside an
+    // item (a nested item's own line included), or at the top level. One that
+    // belongs to an item keeps the item open, so the lines after it continue
+    // the item and its marker is still read.
     const itemStart = ITEM_RE.exec(line);
-    const inItem =
-      itemStart !== null || (current !== undefined && line.trim() !== "" && /^\s/.test(line));
-    const fence = FENCE_RE.exec(
-      itemStart !== null ? line.slice(itemStart[0].length) : inItem ? line.trimStart() : line,
-    );
-    if (fence !== null && !(fence[1][0] === "`" && fence[2].includes("`"))) {
-      openFence = { delim: fence[1], inItem };
+    const opener = fenceOpener(line, itemStart, current);
+    if (opener !== undefined) {
+      openFence = opener;
       if (headingLine !== undefined && itemStart !== null) {
-        current = { line: i + 1, lines: [{ text: itemStart[0], line: i + 1 }] };
+        current = {
+          line: i + 1,
+          width: itemStart[0].length,
+          lines: [{ text: itemStart[0], line: i + 1 }],
+        };
         raw.push(current);
-      } else if (!inItem) {
+      } else if (opener.indent === undefined) {
         current = undefined;
       }
       afterBlank = false;
@@ -172,11 +230,12 @@ export function extractChecklist(
     if (text !== undefined) break;
 
     if (THEMATIC_BREAK_RE.test(line)) {
-      current = undefined;
+      // An indented break sits inside the item; one at column 0 ends it.
+      if (current === undefined || !/^\s/.test(line)) current = undefined;
       continue;
     }
     if (itemStart !== null) {
-      current = { line: i + 1, lines: [{ text: line, line: i + 1 }] };
+      current = { line: i + 1, width: itemStart[0].length, lines: [{ text: line, line: i + 1 }] };
       raw.push(current);
       afterBlank = false;
       continue;
@@ -205,7 +264,9 @@ export function extractChecklist(
 }
 
 function splitLines(markdown: string): string[] {
-  return markdown.replace(/\r\n?/g, "\n").split("\n");
+  // CRLF only: a lone CR is no line break to the body source-path check, and
+  // line numbers must agree with it.
+  return markdown.replace(/\r\n/g, "\n").split("\n");
 }
 
 function oneLine(text: string): string {

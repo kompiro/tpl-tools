@@ -126,11 +126,55 @@ describe("extractChecklist: items", () => {
   });
 
   it("continues an item after a fence inside it, so its marker is read", () => {
-    const item = only(
-      "- [ ] run this\n      ```ts\n      x\n      ```\n      then check [guard: `packages/a.ts`]",
-    );
+    const item = only("- [ ] run this\n  ```ts\n  x\n  ```\n  then check [guard: `packages/a.ts`]");
     expect(item.marker).toMatchObject({ kind: "guard" });
     expect(item.text).toBe("run this then check");
+  });
+
+  it("keeps a fence opened on a nested item's line inside the item", () => {
+    const md = [
+      `## ${H}`,
+      "",
+      "- [ ] run it",
+      "  - ```sh",
+      "    pnpm test",
+      "    ```",
+      "- [ ] b [judgment]",
+      "",
+      "## Notes",
+      "",
+      "```sh",
+      "echo",
+      "```",
+      "- not an item",
+    ].join("\n");
+    expect(extractChecklist(md, H)!.items.map((i) => [i.text, i.marker.kind])).toEqual([
+      ["run it", "none"],
+      ["b", "judgment"],
+    ]);
+  });
+
+  it("closes an item's fence when the item ends, so a missing closer hides nothing", () => {
+    const md = `- \`\`\`sh\n  echo\n\n## ${H}\n\n- a\n`;
+    expect(extractChecklist(md, H)!.items.map((i) => i.text)).toEqual(["a"]);
+  });
+
+  it("does not join a column-0 line after an item's fence to the item", () => {
+    const items = extractChecklist(
+      body("- [ ] a\n  ```sh\n  x\n  ```\nOutro prose [judgment]"),
+      H,
+    )!.items;
+    expect(items.map((i) => [i.text, i.marker.kind])).toEqual([["a", "none"]]);
+  });
+
+  it("keeps an item open across an indented thematic break", () => {
+    expect(only("- [ ] a\n  * * *\n  rest [judgment]").marker).toEqual({ kind: "judgment" });
+  });
+
+  it("reads a fence indented four or more past the item's content as code-free text", () => {
+    // Indented code in CommonMark, not a fence: it must not swallow what follows.
+    const items = extractChecklist(body("- [ ] a\n      ```md\n- [ ] b [judgment]"), H)!.items;
+    expect(items.map((i) => i.marker.kind)).toEqual(["none", "judgment"]);
   });
 
   it("reads a body whose frontmatter was removed without skipping a leading break", () => {

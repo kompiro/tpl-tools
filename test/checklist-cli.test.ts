@@ -147,6 +147,20 @@ describe("commands reading checklist markers", () => {
   });
 
   describe("tpl regenerate", () => {
+    it("reads a body that starts with a thematic break after the frontmatter", () => {
+      writeFileSync(
+        join(root, DIR, "TPL-4-judgment.md"),
+        tpl(4, "- [ ] a [judgment]").replace("---\n\n# TPL-4", "---\n---\n\n# TPL-4"),
+      );
+      expect(regenerateCli(["node", "tpl"])).toBe(0);
+      expect(readFileSync(join(root, DIR, "index.md"), "utf8")).toContain(
+        "— perspective 4 (#4) · judgment 1",
+      );
+      out = "";
+      relatedCli(["node", "tpl", "testing", "--status"]);
+      expect(out).toContain("— perspective 4 · judgment 1");
+    });
+
     it("ends each active entry with its status, and leaves deprecated ones bare", () => {
       expect(regenerateCli(["node", "tpl"])).toBe(0);
       const index = readFileSync(join(root, DIR, "index.md"), "utf8");
