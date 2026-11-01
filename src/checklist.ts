@@ -98,6 +98,19 @@ interface RawItem {
 /** A list marker, top-level or nested, with the space after it. */
 const LIST_MARKER_RE = /^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+/;
 
+/**
+ * The content column of an item that starts with `marker` (the list marker
+ * and the whitespace after it), and whether the rest of the line is indented
+ * code: with five or more spaces after the marker, CommonMark puts the
+ * content one space after it and reads the rest as code.
+ */
+function itemWidth(marker: string): { width: number; indentedCode: boolean } {
+  const bare = marker.trimEnd().length;
+  return marker.length - bare > 4
+    ? { width: bare + 1, indentedCode: true }
+    : { width: marker.length, indentedCode: false };
+}
+
 /** A line with up to `width` of its leading spaces removed. */
 function dropIndent(text: string, width: number): string {
   let at = 0;
@@ -119,8 +132,10 @@ function fenceOpener(
   let subject = line;
   let indent: number | undefined;
   if (itemStart !== null) {
-    indent = itemStart[0].length;
-    subject = line.slice(indent);
+    const { width, indentedCode } = itemWidth(itemStart[0]);
+    if (indentedCode) return undefined;
+    indent = width;
+    subject = line.slice(itemStart[0].length);
   } else if (current !== undefined && line.trim() !== "" && /^\s/.test(line)) {
     indent = current.width;
     subject = dropIndent(line, indent);
@@ -211,7 +226,7 @@ export function extractChecklist(
       if (headingLine !== undefined && itemStart !== null) {
         current = {
           line: i + 1,
-          width: itemStart[0].length,
+          width: opener.indent ?? itemStart[0].length,
           lines: [{ text: itemStart[0], line: i + 1 }],
         };
         raw.push(current);
@@ -235,7 +250,11 @@ export function extractChecklist(
       continue;
     }
     if (itemStart !== null) {
-      current = { line: i + 1, width: itemStart[0].length, lines: [{ text: line, line: i + 1 }] };
+      current = {
+        line: i + 1,
+        width: itemWidth(itemStart[0]).width,
+        lines: [{ text: line, line: i + 1 }],
+      };
       raw.push(current);
       afterBlank = false;
       continue;
@@ -245,9 +264,12 @@ export function extractChecklist(
       continue;
     }
     if (COMMENT_LINE_RE.test(line)) {
-      // An HTML block, not the item's prose: it ends the item rather than
-      // joining its text, where it would push the marker off the end.
-      current = undefined;
+      // An HTML block, not the item's prose, so it never joins the text, where
+      // it would push the marker off the end. At column 0 it ends the item;
+      // indented, it sits inside the item (an absent-path declaration before
+      // a wrapped line), which continues on the next indented line.
+      if (current === undefined || !/^\s/.test(line)) current = undefined;
+      else afterBlank = true;
       continue;
     }
     if (current !== undefined && (!afterBlank || /^\s/.test(line))) {

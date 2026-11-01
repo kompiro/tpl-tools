@@ -183,6 +183,22 @@ describe("extractChecklist: items", () => {
     expect(extractChecklist(md, H, { frontmatter: false })!.items).toHaveLength(1);
   });
 
+  it("keeps an item open across an indented HTML comment, without joining it", () => {
+    const item = only(
+      "- [ ] the old guard was folded into a\n  <!-- absent-path-next-line: deleted in #1 -->\n  `packages/old.ts` is history [guard: `packages/a.ts`]",
+    );
+    expect(item.marker).toMatchObject({ kind: "guard", spans: [{ content: "packages/a.ts" }] });
+    expect(item.text).toBe("the old guard was folded into a `packages/old.ts` is history");
+  });
+
+  it("reads the rest of a line with five or more spaces after the marker as code, not a fence", () => {
+    const items = extractChecklist(
+      body("-     ```sh\n  [judgment]\n- [ ] two [judgment]"),
+      H,
+    )!.items;
+    expect(items.map((i) => i.marker.kind)).toEqual(["judgment", "judgment"]);
+  });
+
   it("ignores a fence inside the section", () => {
     const items = extractChecklist(body("- [ ] a\n\n```\n- not an item\n```\n\n- [ ] b"), H)!.items;
     expect(items.map((i) => i.text)).toEqual(["a", "b"]);
@@ -346,6 +362,17 @@ describe("checkChecklist", () => {
   it("reports a guard file that does not exist", () => {
     expect(check("- a [guard: `packages/core/src/gone.test.ts`]")).toEqual([
       { kind: "checklist-guard-missing", line: 9, path: "packages/core/src/gone.test.ts" },
+    ]);
+  });
+
+  it("reports a guard declared absent on a continuation line", () => {
+    const md = `## ${H}\n\n- [ ] check new sites\n  <!-- absent-path-next-line: deleted -->\n  [guard: \`packages/core/src/gone.test.ts\`]\n`;
+    expect(checkChecklist(md, H, prefixes, root)).toEqual([
+      {
+        kind: "checklist-guard-declared-absent",
+        line: 5,
+        path: "packages/core/src/gone.test.ts",
+      },
     ]);
   });
 
