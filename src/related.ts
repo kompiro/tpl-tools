@@ -50,7 +50,10 @@ export function formatRelatedAsMarkdown(
   const heading = options.statusHeading;
   return matched
     .map((p) => {
-      const status = heading === undefined ? "" : ` · ${formatStatus(statusOf(p.body, heading))}`;
+      const status =
+        heading === undefined
+          ? ""
+          : ` · ${formatStatus(statusOf(p.body, heading, { frontmatter: false }))}`;
       return `- [${p.fm.id}](${prefix}${p.file}) — ${p.fm.title}${status}`;
     })
     .join("\n");

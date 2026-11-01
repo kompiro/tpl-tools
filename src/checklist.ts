@@ -69,6 +69,9 @@ const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const ITEM_RE = /^(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/;
 const TASK_BOX_RE = /^\[[ xX]\](?:[ \t]+|$)/;
 
+/** A thematic break (`* * *`, `- - -`), which is not a list item. */
+const THEMATIC_BREAK_RE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+
 /** A whole-line HTML comment, such as the absent-path declaration. */
 const COMMENT_LINE_RE = /^\s*<!--[^]*-->\s*$/;
 
@@ -90,20 +93,34 @@ interface RawItem {
   lines: { text: string; line: number }[];
 }
 
+export interface ExtractOptions {
+  /**
+   * Whether `markdown` may start with YAML frontmatter to skip. Pass `false`
+   * for a body whose frontmatter is already removed, where a leading `---` is
+   * a thematic break. Defaults to `true`.
+   */
+  frontmatter?: boolean;
+}
+
 /**
  * The checklist section: from the first heading whose text is `heading` to
  * the next heading of any level, so a `###` inside the section ends it.
  * `undefined` when the document has no such heading.
  */
-export function extractChecklist(markdown: string, heading: string): Checklist | undefined {
-  const lines = markdown.split("\n");
+export function extractChecklist(
+  markdown: string,
+  heading: string,
+  options: ExtractOptions = {},
+): Checklist | undefined {
+  // A CRLF checkout (Windows, core.autocrlf) holds the same document.
+  const lines = splitLines(markdown);
   let start = 0;
-  if (lines[0]?.trim() === "---") {
+  if ((options.frontmatter ?? true) && lines[0]?.trim() === "---") {
     const close = lines.findIndex((l, i) => i > 0 && /^---\s*$/.test(l));
     start = close === -1 ? lines.length : close + 1;
   }
 
-  let openFence: string | undefined;
+  let openFence: { delim: string; inItem: boolean } | undefined;
   let headingLine: number | undefined;
   const raw: RawItem[] = [];
   let current: RawItem | undefined;
@@ -111,22 +128,39 @@ export function extractChecklist(markdown: string, heading: string): Checklist |
 
   for (let i = start; i < lines.length; i++) {
     const line = lines[i];
-    const fence = FENCE_RE.exec(line);
     if (openFence !== undefined) {
+      // A fence inside an item is indented to the item's content, so its
+      // closer is read with that indentation removed.
+      const fence = FENCE_RE.exec(openFence.inItem ? line.trimStart() : line);
       if (
         fence !== null &&
-        fence[1][0] === openFence[0] &&
-        fence[1].length >= openFence.length &&
+        fence[1][0] === openFence.delim[0] &&
+        fence[1].length >= openFence.delim.length &&
         fence[2].trim() === ""
       ) {
         openFence = undefined;
       }
       continue;
     }
+
+    // A fence can open on an item's own line (`- ```sh`) or on an indented
+    // line inside the item; either way it belongs to the item, and the lines
+    // after it still continue the item. A fence at column 0 ends the item.
+    const itemStart = ITEM_RE.exec(line);
+    const inItem =
+      itemStart !== null || (current !== undefined && line.trim() !== "" && /^\s/.test(line));
+    const fence = FENCE_RE.exec(
+      itemStart !== null ? line.slice(itemStart[0].length) : inItem ? line.trimStart() : line,
+    );
     if (fence !== null && !(fence[1][0] === "`" && fence[2].includes("`"))) {
-      // A fence ends the item above it; its content is code, not the item's text.
-      openFence = fence[1];
-      current = undefined;
+      openFence = { delim: fence[1], inItem };
+      if (headingLine !== undefined && itemStart !== null) {
+        current = { line: i + 1, lines: [{ text: itemStart[0], line: i + 1 }] };
+        raw.push(current);
+      } else if (!inItem) {
+        current = undefined;
+      }
+      afterBlank = false;
       continue;
     }
 
@@ -137,7 +171,11 @@ export function extractChecklist(markdown: string, heading: string): Checklist |
     }
     if (text !== undefined) break;
 
-    if (ITEM_RE.test(line)) {
+    if (THEMATIC_BREAK_RE.test(line)) {
+      current = undefined;
+      continue;
+    }
+    if (itemStart !== null) {
       current = { line: i + 1, lines: [{ text: line, line: i + 1 }] };
       raw.push(current);
       afterBlank = false;
@@ -164,6 +202,10 @@ export function extractChecklist(markdown: string, heading: string): Checklist |
 
   if (headingLine === undefined) return undefined;
   return { line: headingLine, items: raw.map((r, k) => parseItem(r, k + 1)) };
+}
+
+function splitLines(markdown: string): string[] {
+  return markdown.replace(/\r\n?/g, "\n").split("\n");
 }
 
 function oneLine(text: string): string {
@@ -315,8 +357,12 @@ export function formatStatus(counts: StatusCounts): string {
 }
 
 /** Status of one TPL body, for display. Syntax only: guard paths are not resolved. */
-export function statusOf(markdown: string, heading: string): StatusCounts {
-  return deriveStatus(extractChecklist(markdown, heading)?.items ?? []);
+export function statusOf(
+  markdown: string,
+  heading: string,
+  options: ExtractOptions = {},
+): StatusCounts {
+  return deriveStatus(extractChecklist(markdown, heading, options)?.items ?? []);
 }
 
 // ---------------------------------------------------------------------------
@@ -328,14 +374,17 @@ export type ChecklistFinding =
   | { kind: "checklist-empty"; line: number; heading: string }
   | { kind: "checklist-marker-malformed"; line: number; reason: string }
   | { kind: "checklist-guard-path-unchecked"; line: number; span: string }
+  | { kind: "checklist-guard-missing"; line: number; path: string }
   | { kind: "checklist-guard-not-file"; line: number; path: string }
   | { kind: "checklist-guard-declared-absent"; line: number; path: string };
 
 /**
- * Findings for one TPL document. A guard path that does not exist is left to
- * the body source-path check, which already reports every missing path named
- * in a code span; this check adds what that one lets through: a span it skips
- * (so the guard would go unchecked), a directory, and a guard declared absent.
+ * Findings for one TPL document: a missing or empty section, a malformed
+ * marker, and each guard path that is not a checkable file path, does not
+ * exist, is a directory, or is declared absent. The missing-file finding
+ * overlaps the body source-path check on purpose: that check reads a list as
+ * one paragraph, so a stray backtick in an earlier item can hide the guard's
+ * span from it. `validateAll` drops its duplicate.
  */
 export function checkChecklist(
   markdown: string,
@@ -349,7 +398,7 @@ export function checkChecklist(
     return [{ kind: "checklist-empty", line: checklist.line, heading }];
   }
 
-  const lines = markdown.split("\n");
+  const lines = splitLines(markdown);
   const findings: ChecklistFinding[] = [];
   for (const item of checklist.items) {
     const { marker } = item;
@@ -382,7 +431,9 @@ export function checkChecklist(
       } catch {
         isFile = undefined;
       }
-      if (isFile === false) {
+      if (isFile === undefined) {
+        findings.push({ kind: "checklist-guard-missing", line: span.line, path });
+      } else if (!isFile) {
         findings.push({ kind: "checklist-guard-not-file", line: span.line, path });
       }
     }
@@ -409,14 +460,17 @@ export interface ChecklistRow {
   text: string;
 }
 
-/** Every checklist item of the given TPLs, in TPL then item order. Syntax only. */
+/**
+ * Every checklist item of the given TPLs, in TPL then item order. Syntax only.
+ * `body` is the text after the frontmatter, as `loadAllTpls` returns it.
+ */
 export function checklistRows(
   tpls: readonly { file: string; body: string; fm: { id: string; topic: string } }[],
   heading: string,
 ): ChecklistRow[] {
   const rows: ChecklistRow[] = [];
   for (const tpl of tpls) {
-    for (const item of extractChecklist(tpl.body, heading)?.items ?? []) {
+    for (const item of extractChecklist(tpl.body, heading, { frontmatter: false })?.items ?? []) {
       const { marker } = item;
       rows.push({
         id: tpl.fm.id,

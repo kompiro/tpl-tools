@@ -101,6 +101,44 @@ describe("extractChecklist: items", () => {
     expect(items.map((i) => i.text)).toEqual(["a", "b"]);
   });
 
+  it("reads a CRLF document the same way", () => {
+    const items = extractChecklist(
+      body("- [ ] a\n- [ ] b [judgment]").replace(/\n/g, "\r\n"),
+      H,
+    )!.items;
+    expect(items.map((i) => [i.text, i.marker.kind])).toEqual([
+      ["a", "none"],
+      ["b", "judgment"],
+    ]);
+  });
+
+  it("does not count a thematic break as an item", () => {
+    const items = extractChecklist(body("- [ ] a\n\n* * *\n\n- [ ] b"), H)!.items;
+    expect(items.map((i) => i.text)).toEqual(["a", "b"]);
+  });
+
+  it("keeps a fence opened on the item's line inside the item", () => {
+    const items = extractChecklist(
+      body("- ```sh\n  # a comment, not a heading\n  ```\n- [ ] b"),
+      H,
+    )!.items;
+    expect(items.map((i) => i.text)).toEqual(["", "b"]);
+  });
+
+  it("continues an item after a fence inside it, so its marker is read", () => {
+    const item = only(
+      "- [ ] run this\n      ```ts\n      x\n      ```\n      then check [guard: `packages/a.ts`]",
+    );
+    expect(item.marker).toMatchObject({ kind: "guard" });
+    expect(item.text).toBe("run this then check");
+  });
+
+  it("reads a body whose frontmatter was removed without skipping a leading break", () => {
+    const md = `---\n\n## ${H}\n\n- a\n`;
+    expect(extractChecklist(md, H)).toBeUndefined();
+    expect(extractChecklist(md, H, { frontmatter: false })!.items).toHaveLength(1);
+  });
+
   it("ignores a fence inside the section", () => {
     const items = extractChecklist(body("- [ ] a\n\n```\n- not an item\n```\n\n- [ ] b"), H)!.items;
     expect(items.map((i) => i.text)).toEqual(["a", "b"]);
@@ -261,8 +299,17 @@ describe("checkChecklist", () => {
     ]);
   });
 
-  it("leaves a missing guard file to the body source-path check", () => {
-    expect(check("- a [guard: `packages/core/src/gone.test.ts`]")).toEqual([]);
+  it("reports a guard file that does not exist", () => {
+    expect(check("- a [guard: `packages/core/src/gone.test.ts`]")).toEqual([
+      { kind: "checklist-guard-missing", line: 9, path: "packages/core/src/gone.test.ts" },
+    ]);
+  });
+
+  it("reads a CRLF document the same way", () => {
+    const md = body("- a [guard: `packages/core/src/gone.test.ts`]\n- b").replace(/\n/g, "\r\n");
+    expect(checkChecklist(md, H, prefixes, root)).toEqual([
+      { kind: "checklist-guard-missing", line: 9, path: "packages/core/src/gone.test.ts" },
+    ]);
   });
 
   it("reports a guard declared absent", () => {

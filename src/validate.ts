@@ -64,6 +64,7 @@ export type Finding =
   | { kind: "checklist-empty"; file: string; line: number; heading: string }
   | { kind: "checklist-marker-malformed"; file: string; line: number; reason: string }
   | { kind: "checklist-guard-path-unchecked"; file: string; line: number; span: string }
+  | { kind: "checklist-guard-missing"; file: string; line: number; path: string }
   | { kind: "checklist-guard-not-file"; file: string; line: number; path: string }
   | { kind: "checklist-guard-declared-absent"; file: string; line: number; path: string };
 
@@ -474,7 +475,20 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
     findings.push(...result.findings);
     if (result.parsed) parsed.push(result.parsed);
 
+    const checklist =
+      opts.checklistHeading === undefined
+        ? []
+        : checkChecklist(content, opts.checklistHeading, sourcePrefixes, repoRoot);
+    // A missing guard file is reported once, as a guard.
+    const missingGuards = new Set(
+      checklist.flatMap((cf) =>
+        cf.kind === "checklist-guard-missing" ? [`${cf.line}:${cf.path}`] : [],
+      ),
+    );
     for (const sp of checkSourcePaths(content, sourcePrefixes, repoRoot)) {
+      if (sp.kind === "body-source-path-missing" && missingGuards.has(`${sp.line}:${sp.path}`)) {
+        continue;
+      }
       findings.push(
         sp.kind === "body-source-path-missing"
           ? { kind: sp.kind, file: full, line: sp.line, path: sp.path }
@@ -482,11 +496,7 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
       );
     }
 
-    if (opts.checklistHeading !== undefined) {
-      for (const cf of checkChecklist(content, opts.checklistHeading, sourcePrefixes, repoRoot)) {
-        findings.push({ ...cf, file: full });
-      }
-    }
+    for (const cf of checklist) findings.push({ ...cf, file: full });
   }
 
   findings.push(...validateUniqueIds(parsed));
@@ -575,6 +585,8 @@ export function formatFinding(f: Finding): string {
       return `${f.file}:${f.line}: malformed checklist marker: ${f.reason}`;
     case "checklist-guard-path-unchecked":
       return `${f.file}:${f.line}: guard \`${f.span}\` is not a file path under a source prefix, so it would go unchecked (no line numbers, globs or directories)`;
+    case "checklist-guard-missing":
+      return `${f.file}:${f.line}: guard \`${f.path}\` does not exist`;
     case "checklist-guard-not-file":
       return `${f.file}:${f.line}: guard \`${f.path}\` is a directory; name the file that enforces the item`;
     case "checklist-guard-declared-absent":

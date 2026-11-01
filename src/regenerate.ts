@@ -54,7 +54,7 @@ function entryLine(tpl: ParsedTpl, opts: RenderIndexOptions, withStatus: boolean
   // counts as unguarded here and `tpl validate` reports it.
   const status =
     withStatus && opts.checklistHeading !== undefined
-      ? ` · ${formatStatus(statusOf(tpl.body, opts.checklistHeading))}`
+      ? ` · ${formatStatus(statusOf(tpl.body, opts.checklistHeading, { frontmatter: false }))}`
       : "";
   return `- [${tpl.fm.id}](${href}) — ${title}${suffix}${status}`;
 }

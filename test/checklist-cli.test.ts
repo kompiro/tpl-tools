@@ -119,6 +119,27 @@ describe("commands reading checklist markers", () => {
       expect(err).toContain('TPL-4-judgment.md: no "Checklist" heading');
     });
 
+    it("reports a missing guard file once, even where the body check cannot see its span", () => {
+      writeFileSync(
+        join(root, DIR, "TPL-4-judgment.md"),
+        tpl(4, "- [ ] quote the ` character\n- [ ] x [guard: `packages/core/gone.test.ts`]"),
+      );
+      regenerateCli(["node", "tpl"]);
+      expect(run("--source-prefix", "packages")).toBe(1);
+      expect(err.match(/gone\.test\.ts/g)).toHaveLength(1);
+      expect(err).toContain("guard `packages/core/gone.test.ts` does not exist");
+    });
+
+    it("reports a plainly missing guard file once, not also as a body path", () => {
+      writeFileSync(
+        join(root, DIR, "TPL-4-judgment.md"),
+        tpl(4, "- [ ] x [guard: `packages/core/gone.test.ts`]"),
+      );
+      regenerateCli(["node", "tpl"]);
+      expect(run("--source-prefix", "packages")).toBe(1);
+      expect(err.match(/gone\.test\.ts/g)).toHaveLength(1);
+    });
+
     it("checks nothing new when checklistHeading is unset", () => {
       writeConfig({});
       expect(run()).toBe(0);

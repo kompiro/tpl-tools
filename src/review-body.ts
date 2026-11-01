@@ -148,7 +148,10 @@ export function renderReviewBody(opts: ReviewBodyOptions): string {
     for (const t of active) lines.push(entry(t));
   } else {
     const heading = opts.checklistHeading;
-    const withStatus = active.map((t) => ({ t, counts: statusOf(t.body, heading) }));
+    const withStatus = active.map((t) => ({
+      t,
+      counts: statusOf(t.body, heading, { frontmatter: false }),
+    }));
     let first = true;
     for (const { status, question } of STATUS_QUESTIONS) {
       const group = withStatus.filter((x) => x.counts.status === status);

@@ -167,8 +167,10 @@ least one top-level list item in it, and well-formed markers:
   marker at the end (the bare words "guard" and "judgment" are just prose);
 - every guard path is a file path the source-path check reads (a whole span,
   under a `--source-prefix`, no `:line`, glob or trailing `/`), names a file
-  rather than a directory, and is not under `absent-path-next-line`. A guard
-  path that does not exist is reported by the source-path check above.
+  rather than a directory, exists, and is not under `absent-path-next-line`.
+
+An item's nested lines belong to it, so for an item with sub-items the marker
+goes after the last nested line.
 
 Since a guard that no prefix covers would pass unchecked, `tpl validate` with
 `checklistHeading` set and no `--source-prefix` is a usage error.
