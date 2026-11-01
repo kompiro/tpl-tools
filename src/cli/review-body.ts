@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { CONFIG_FILENAME, loadReferenceData, resolveConfigPath } from "../config.ts";
 import { renderReviewBody } from "../review-body.ts";
 import { parseFlags } from "./args.ts";
 
@@ -14,9 +15,14 @@ Options:
                             (default: docs/test-perspectives)
   --period-label <label>    Period named in the heading, e.g. 2026-09. Pass the
                             same label the Issue title uses (default: ISO week)
+  --config <path>           JSON file holding "checklistHeading" (optional):
+                            when set, TPLs are grouped by the enforcement
+                            status of their checklist, each group under its own
+                            question. Defaults to ${CONFIG_FILENAME} in CWD
+                            when present.
   -h, --help                Show this help`;
 
-const VALUE_FLAGS = new Set(["tpl-dir", "repo", "tpl-dir-relative", "period-label"]);
+const VALUE_FLAGS = new Set(["tpl-dir", "repo", "tpl-dir-relative", "period-label", "config"]);
 
 export function main(argv: readonly string[]): number {
   let parsed: ReturnType<typeof parseFlags>;
@@ -51,6 +57,24 @@ export function main(argv: readonly string[]): number {
     return 2;
   }
 
-  process.stdout.write(renderReviewBody({ tplDir, repo, tplDirRelative, periodLabel }));
+  let checklistHeading: string | undefined;
+  try {
+    checklistHeading = loadReferenceData(
+      resolveConfigPath(parsed.options.get("config"), cwd),
+    ).checklistHeading;
+  } catch (e) {
+    process.stderr.write(`error: ${(e as Error).message}\n`);
+    return 2;
+  }
+
+  process.stdout.write(
+    renderReviewBody({
+      tplDir,
+      repo,
+      tplDirRelative,
+      periodLabel,
+      ...(checklistHeading === undefined ? {} : { checklistHeading }),
+    }),
+  );
   return 0;
 }

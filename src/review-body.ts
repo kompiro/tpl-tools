@@ -5,6 +5,7 @@
 // and a disposition legend. A scheduled workflow typically pipes this into
 // `gh issue create --body-file -`.
 
+import { type EnforcementStatus, formatStatus, statusOf, type StatusCounts } from "./checklist.ts";
 import { loadAllTpls } from "./validate.ts";
 
 interface ActiveTpl {
@@ -12,6 +13,7 @@ interface ActiveTpl {
   title: string;
   topic: string;
   file: string;
+  body: string;
 }
 
 export interface ReviewBodyOptions {
@@ -30,7 +32,44 @@ export interface ReviewBodyOptions {
   periodLabel?: string;
   /** Override "now", used for the default period label (mainly for tests). */
   now?: Date;
+  /**
+   * Heading of the checklist section (`checklistHeading` in the config). When
+   * given, the TPLs are grouped by the enforcement status derived from their
+   * checklist markers, each group under the question that status raises.
+   */
+  checklistHeading?: string;
 }
+
+/**
+ * The question each status raises, in the order the groups appear. Statuses
+ * with unmarked items come first: those are the items that still depend on a
+ * reader remembering the TPL.
+ */
+const STATUS_QUESTIONS: readonly { status: EnforcementStatus | undefined; question: string }[] = [
+  {
+    status: "unguarded",
+    question:
+      "Can any unmarked item become a guard: a test or script that goes red when a *new* site violates it?",
+  },
+  {
+    status: "partial",
+    question:
+      "Can any unmarked item become a guard: a test or script that goes red when a *new* site violates it?",
+  },
+  {
+    status: "guarded",
+    question:
+      "Every checkable item has a guard. Can the checklist be thinned to what the guards do not already enforce?",
+  },
+  {
+    status: "judgment",
+    question: "Has any item become decidable by a program, so it could carry a guard?",
+  },
+  {
+    status: undefined,
+    question: "No checklist item: add the checklist (`tpl validate` reports this too).",
+  },
+];
 
 /** ISO 8601 week date, e.g. `2026-W19`, computed in UTC. */
 function isoWeekLabel(d: Date): string {
@@ -48,10 +87,10 @@ function listActiveTpls(tplDir: string): ActiveTpl[] {
   // filename regex here once matched only `TPL-YYYYMMDD-NN-*.md`, so a
   // corpus migrated to issue-number ids produced an empty review Issue.
   const active: ActiveTpl[] = [];
-  for (const { file, fm } of loadAllTpls(tplDir)) {
+  for (const { file, fm, body } of loadAllTpls(tplDir)) {
     if (fm.status !== "active") continue;
     if (typeof fm.title !== "string" || typeof fm.topic !== "string") continue;
-    active.push({ id: fm.id, title: fm.title, topic: fm.topic, file });
+    active.push({ id: fm.id, title: fm.title, topic: fm.topic, file, body });
   }
   return active;
 }
@@ -100,13 +139,27 @@ export function renderReviewBody(opts: ReviewBodyOptions): string {
   lines.push("");
   lines.push(`## Active TPLs (${active.length})`);
   lines.push("");
+  const entry = (t: ActiveTpl, status?: StatusCounts): string =>
+    `- [ ] [${t.id}](${fileBaseUrl}/${t.file}) — ${t.title} _(topic: \`${t.topic}\`)_` +
+    (status === undefined ? "" : ` · ${formatStatus(status)}`);
   if (active.length === 0) {
     lines.push("_No active TPLs — nothing to review._");
+  } else if (opts.checklistHeading === undefined) {
+    for (const t of active) lines.push(entry(t));
   } else {
-    for (const t of active) {
-      lines.push(
-        `- [ ] [${t.id}](${fileBaseUrl}/${t.file}) — ${t.title} _(topic: \`${t.topic}\`)_`,
-      );
+    const heading = opts.checklistHeading;
+    const withStatus = active.map((t) => ({ t, counts: statusOf(t.body, heading) }));
+    let first = true;
+    for (const { status, question } of STATUS_QUESTIONS) {
+      const group = withStatus.filter((x) => x.counts.status === status);
+      if (group.length === 0) continue;
+      if (!first) lines.push("");
+      first = false;
+      lines.push(`### ${status ?? "no checklist items"} (${group.length})`);
+      lines.push("");
+      lines.push(`> ${question}`);
+      lines.push("");
+      for (const { t, counts } of group) lines.push(entry(t, counts));
     }
   }
   lines.push("");

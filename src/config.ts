@@ -45,6 +45,14 @@ export interface ReferenceData {
    * of `README.md`. Unset keeps the hand-maintained README index.
    */
   indexFile?: string;
+  /**
+   * Heading text of the checklist section (e.g. `Checklist`). When set, each
+   * checklist item may end with a `[guard: …]` or `[judgment]` marker,
+   * `tpl validate` checks the section and its markers, and the commands that
+   * list TPLs can show the status derived from them. Unset turns all of that
+   * off.
+   */
+  checklistHeading?: string;
 }
 
 export class ReferenceDataInvalidError extends Error {
@@ -71,8 +79,8 @@ function isStringArray(v: unknown): v is string[] {
  * Load reference data from a JSON file.
  *
  * The file is expected to contain a `topics` array of strings, an optional
- * `idFormat` string (`"date-sequence"` or `"issue-number"`), and an optional
- * `indexFile` string. Other keys are
+ * `idFormat` string (`"date-sequence"` or `"issue-number"`), an optional
+ * `indexFile` string, and an optional `checklistHeading` string. Other keys are
  * ignored — this is intentionally lenient so the same file can serve other
  * tools. When `path` is `undefined`, returns empty reference data, which
  * disables topic validation entirely and falls back to the default id format.
@@ -154,7 +162,29 @@ export function loadReferenceData(path?: string): ReferenceData {
     indexFile = raw;
   }
 
-  return indexFile === undefined
-    ? { idFormat, topics: topicsRaw }
-    : { idFormat, topics: topicsRaw, indexFile };
+  let checklistHeading: string | undefined;
+  if (obj.checklistHeading !== undefined) {
+    const raw = obj.checklistHeading;
+    // The value is compared with a heading's text, so the `#` markers and
+    // surrounding space are not part of it, and a heading is one line.
+    if (
+      typeof raw !== "string" ||
+      raw.trim() === "" ||
+      raw !== raw.trim() ||
+      /[\r\n]/.test(raw) ||
+      raw.startsWith("#")
+    ) {
+      throw new ReferenceDataInvalidError(
+        `${path}: "checklistHeading" must be the heading's text on one line, without "#" or surrounding space (e.g. "Checklist"), got ${JSON.stringify(raw)}`,
+      );
+    }
+    checklistHeading = raw;
+  }
+
+  return {
+    idFormat,
+    topics: topicsRaw,
+    ...(indexFile === undefined ? {} : { indexFile }),
+    ...(checklistHeading === undefined ? {} : { checklistHeading }),
+  };
 }

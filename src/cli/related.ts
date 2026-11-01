@@ -1,6 +1,11 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { CONFIG_FILENAME, loadReferenceData, resolveConfigPath } from "../config.ts";
+import {
+  CONFIG_FILENAME,
+  loadReferenceData,
+  type ReferenceData,
+  resolveConfigPath,
+} from "../config.ts";
 import { findRelated, formatRelatedAsMarkdown } from "../related.ts";
 import { loadAllTpls } from "../validate.ts";
 import { parseFlags } from "./args.ts";
@@ -17,6 +22,9 @@ Options:
                        when <topic> is outside the controlled vocabulary.
                        Defaults to ${CONFIG_FILENAME} in CWD when present.
   --path-prefix <p>    Prefix for links in the output (default: docs/test-perspectives/)
+  --status             End each line with the enforcement status derived from
+                       the TPL's checklist markers. Needs "checklistHeading"
+                       in the config.
   -h, --help           Show this help`;
 
 const VALUE_FLAGS = new Set(["package", "tpl-dir", "config", "path-prefix"]);
@@ -49,14 +57,15 @@ export function main(argv: readonly string[]): number {
   }
 
   const cfgPath = resolveConfigPath(parsed.options.get("config"), cwd);
+  let refData: ReferenceData | undefined;
   if (cfgPath !== undefined) {
-    let topics: readonly string[];
     try {
-      topics = loadReferenceData(cfgPath).topics;
+      refData = loadReferenceData(cfgPath);
     } catch (e) {
       process.stderr.write(`error: ${(e as Error).message}\n`);
       return 2;
     }
+    const { topics } = refData;
     if (topics.length > 0 && !topics.includes(topic)) {
       process.stderr.write(
         `warning: topic "${topic}" is not in the controlled vocabulary\n` +
@@ -64,6 +73,14 @@ export function main(argv: readonly string[]): number {
           `         continuing anyway.\n\n`,
       );
     }
+  }
+
+  const wantStatus = parsed.flags.has("status");
+  if (wantStatus && refData?.checklistHeading === undefined) {
+    process.stderr.write(
+      'error: --status derives the status from checklist markers, which needs "checklistHeading" in the config\n',
+    );
+    return 2;
   }
 
   const pkg = parsed.options.get("package");
@@ -75,6 +92,11 @@ export function main(argv: readonly string[]): number {
     return 0;
   }
   const pathPrefix = parsed.options.get("path-prefix");
-  process.stdout.write(`${formatRelatedAsMarkdown(matched, pathPrefix ? { pathPrefix } : {})}\n`);
+  process.stdout.write(
+    `${formatRelatedAsMarkdown(matched, {
+      ...(pathPrefix ? { pathPrefix } : {}),
+      ...(wantStatus ? { statusHeading: refData?.checklistHeading } : {}),
+    })}\n`,
+  );
   return 0;
 }

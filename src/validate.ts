@@ -1,3 +1,4 @@
+import { checkChecklist } from "./checklist.ts";
 import { ABSENT_PATH_MARKER, checkSourcePaths } from "./source-paths.ts";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -58,7 +59,13 @@ export type Finding =
   | { kind: "index-unreadable"; index: string; message: string }
   | { kind: "body-source-path-missing"; file: string; line: number; path: string }
   | { kind: "absent-path-marker-unused"; file: string; line: number }
-  | { kind: "absent-path-marker-empty-reason"; file: string; line: number };
+  | { kind: "absent-path-marker-empty-reason"; file: string; line: number }
+  | { kind: "checklist-missing"; file: string; heading: string }
+  | { kind: "checklist-empty"; file: string; line: number; heading: string }
+  | { kind: "checklist-marker-malformed"; file: string; line: number; reason: string }
+  | { kind: "checklist-guard-path-unchecked"; file: string; line: number; span: string }
+  | { kind: "checklist-guard-not-file"; file: string; line: number; path: string }
+  | { kind: "checklist-guard-declared-absent"; file: string; line: number; path: string };
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -404,6 +411,13 @@ interface ValidateOptions {
    * TPL id / filename convention. Defaults to `date-sequence` when omitted.
    */
   idFormat?: IdFormat;
+  /**
+   * Heading text of the checklist section (`checklistHeading` in the config).
+   * When set, every TPL must have that section with at least one item, and
+   * each item's marker is checked. Guard paths can only be checked against
+   * `sourcePrefixes`, so setting this without any prefix throws.
+   */
+  checklistHeading?: string;
 }
 
 interface ValidateResult {
@@ -443,6 +457,11 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
 
   const sourcePrefixes = new Set(opts.sourcePrefixes ?? []);
   const repoRoot = opts.repoRoot ?? process.cwd();
+  if (opts.checklistHeading !== undefined && sourcePrefixes.size === 0) {
+    // A guard path that no prefix covers would pass unchecked, which is the
+    // silent skip the marker check exists to rule out.
+    throw new Error("checklistHeading needs at least one source prefix to check guard paths");
+  }
 
   for (const f of listTplFiles(opts.tplDir)) {
     const full = join(opts.tplDir, f);
@@ -461,6 +480,12 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
           ? { kind: sp.kind, file: full, line: sp.line, path: sp.path }
           : { kind: sp.kind, file: full, line: sp.line },
       );
+    }
+
+    if (opts.checklistHeading !== undefined) {
+      for (const cf of checkChecklist(content, opts.checklistHeading, sourcePrefixes, repoRoot)) {
+        findings.push({ ...cf, file: full });
+      }
     }
   }
 
@@ -542,6 +567,18 @@ export function formatFinding(f: Finding): string {
       return `${f.file}:${f.line}: \`${ABSENT_PATH_MARKER}\` declares an absent path, but every path on the next line resolves`;
     case "absent-path-marker-empty-reason":
       return `${f.file}:${f.line}: \`${ABSENT_PATH_MARKER}\` needs a reason after the colon`;
+    case "checklist-missing":
+      return `${f.file}: no "${f.heading}" heading; the checklist section is required`;
+    case "checklist-empty":
+      return `${f.file}:${f.line}: "${f.heading}" has no list item`;
+    case "checklist-marker-malformed":
+      return `${f.file}:${f.line}: malformed checklist marker: ${f.reason}`;
+    case "checklist-guard-path-unchecked":
+      return `${f.file}:${f.line}: guard \`${f.span}\` is not a file path under a source prefix, so it would go unchecked (no line numbers, globs or directories)`;
+    case "checklist-guard-not-file":
+      return `${f.file}:${f.line}: guard \`${f.path}\` is a directory; name the file that enforces the item`;
+    case "checklist-guard-declared-absent":
+      return `${f.file}:${f.line}: guard \`${f.path}\` sits under \`${ABSENT_PATH_MARKER}\`; a guard declared absent guards nothing`;
     case "readme-row-points-to-missing-file":
       return f.index === undefined
         ? `README index: row for ${f.tplId} points to missing file "${f.href}"`

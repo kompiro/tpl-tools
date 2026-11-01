@@ -109,11 +109,15 @@ export function candidatePath(span: string, prefixes: ReadonlySet<string>): stri
   return trimmed;
 }
 
-interface CodeSpan {
+export interface CodeSpan {
   /** The span's content, padding stripped. */
   content: string;
   /** Offset of the content in the text the span was found in. */
   index: number;
+  /** Offset of the opening backtick run. */
+  start: number;
+  /** Offset just past the closing backtick run. */
+  end: number;
 }
 
 /**
@@ -135,7 +139,7 @@ interface CodeSpan {
  * an escaped backtick can only merge a span into something that is no longer a
  * path end to end, which is the side that under-reports.
  */
-function inlineCodeSpans(text: string): CodeSpan[] {
+export function inlineCodeSpans(text: string): CodeSpan[] {
   const runs: { start: number; end: number }[] = [];
   BACKTICK_RUN_RE.lastIndex = 0;
   for (let m = BACKTICK_RUN_RE.exec(text); m !== null; m = BACKTICK_RUN_RE.exec(text)) {
@@ -151,6 +155,8 @@ function inlineCodeSpans(text: string): CodeSpan[] {
     spans.push({
       content: stripPadding(text.slice(open.end, runs[close].start)),
       index: open.end,
+      start: open.start,
+      end: runs[close].end,
     });
     // What stood between the two runs was code, so no run inside it can open a
     // span of its own.

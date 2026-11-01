@@ -20,7 +20,9 @@ Options:
                            optional), "idFormat" ("date-sequence" |
                            "issue-number", default "date-sequence") and
                            "indexFile" (the generated index to check instead
-                           of README.md, optional).
+                           of README.md, optional) and "checklistHeading"
+                           (the checklist section whose item markers are
+                           checked, optional; needs --source-prefix).
                            Defaults to ${CONFIG_FILENAME} in CWD when present;
                            omit and provide no ${CONFIG_FILENAME} to skip topic
                            validation and use the default id format.
@@ -93,6 +95,13 @@ export function main(argv: readonly string[]): number {
     }
   }
 
+  if (refData.checklistHeading !== undefined && sourcePrefixes.length === 0) {
+    process.stderr.write(
+      'error: "checklistHeading" is set, so guard paths must be checked: pass --source-prefix for each top-level directory a guard may name\n',
+    );
+    return 2;
+  }
+
   const { findings, parsed: tpls } = validateAll({
     tplDir,
     validTopics: refData.topics,
@@ -100,6 +109,9 @@ export function main(argv: readonly string[]): number {
     readmePath,
     ...(refData.indexFile === undefined ? {} : { indexPath: join(tplDir, refData.indexFile) }),
     idFormat: refData.idFormat,
+    ...(refData.checklistHeading === undefined
+      ? {}
+      : { checklistHeading: refData.checklistHeading }),
     sourcePrefixes,
     repoRoot: cwd,
   });
