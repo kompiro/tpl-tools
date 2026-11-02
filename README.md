@@ -49,7 +49,7 @@ tpl <subcommand> [options]
 ### Configuration (`tpl.config.json`)
 
 `tpl` reads reference data (the controlled `topics` vocabulary, the
-`idFormat`, and the optional `indexFile` and `checklistHeading`) from a JSON
+`idFormat`, and the optional `indexFile`, `indexCheck` and `checklistHeading`) from a JSON
 file. Resolution order:
 
 1. an explicit `--config <path>` (highest priority)
@@ -80,7 +80,7 @@ tpl validate [--tpl-dir <path>] [--config <path>] [--packages-root <path>]
 
 - `--tpl-dir` — directory of TPL files (default `docs/test-perspectives`)
 - `--config` — JSON file holding `topics` (controlled vocabulary, optional),
-  `idFormat` (optional, see below), `indexFile` (optional, see
+  `idFormat` (optional, see below), `indexFile` and `indexCheck` (optional, see
   [`tpl regenerate`](#tpl-regenerate)) and `checklistHeading` (optional, see
   [Checklist markers](#checklist-markers-and-enforcement-status)). Defaults to `tpl.config.json` in CWD
   when present; **omit and provide no `tpl.config.json` to skip topic
@@ -194,7 +194,7 @@ Those commands take no `--source-prefix`, so they read marker syntax only.
 Checks are per-file (frontmatter shape, filename ↔ id, controlled
 vocabularies) and cross-file (id uniqueness, `related_to` resolution, and the
 index: the file named by `indexFile`, or `README.md` without it, must link
-every TPL to an existing file). The id-uniqueness check exists because ids minted on
+every TPL to an existing file; `"indexCheck": false` skips this one). The id-uniqueness check exists because ids minted on
 concurrent branches can collide — e.g. two branches created the same day both
 see `TPL-YYYYMMDD-01` as free — and each file is internally consistent, so
 only a cross-file view detects it once both files land in one tree.
@@ -260,6 +260,23 @@ conflict is re-running `tpl regenerate`.
 Once `indexFile` is set, `tpl validate` checks that file instead of
 `README.md` (every TPL listed, every link resolving) and reports a missing
 index file; the README no longer needs a row per TPL.
+
+If the index is written outside your PRs, for example by a scheduled job that
+opens a regeneration PR, it lags the TPLs between runs and does not exist
+before the first one, so a PR that adds a TPL would fail `tpl validate`. Set
+`"indexCheck": false` to turn the index check off: `tpl validate` then reads
+neither the `indexFile` nor `README.md` for rows or links, and does not fall
+back to the README table. `tpl regenerate` and `--check` ignore the key; check
+the regeneration PR with `--check` instead.
+
+```json
+{
+  "idFormat": "issue-number",
+  "topics": ["frontend", "api", "data"],
+  "indexFile": "index.md",
+  "indexCheck": false
+}
+```
 
 ### `tpl related`
 

@@ -34,6 +34,9 @@ jobs:
           node dist/cli.js regenerate --tpl-dir /tmp/tpl-regen --config /tmp/tpl-regen.json
           node dist/cli.js regenerate --check --tpl-dir /tmp/tpl-regen --config /tmp/tpl-regen.json
           node dist/cli.js validate --tpl-dir /tmp/tpl-regen --config /tmp/tpl-regen.json
+          cp -r test/fixtures/tpl /tmp/tpl-noindex
+          jq '. + {indexFile: "index.md", indexCheck: false}' test/fixtures/reference-data.json > /tmp/tpl-noindex.json
+          node dist/cli.js validate --tpl-dir /tmp/tpl-noindex --config /tmp/tpl-noindex.json
           node dist/cli.js review-body --tpl-dir test/fixtures/tpl --repo kompiro/example > /dev/null
           node dist/cli.js validate --tpl-dir test/fixtures/tpl-checklist --config test/fixtures/checklist-config.json --source-prefix src
           node dist/cli.js related testing --status --tpl-dir test/fixtures/tpl-checklist --config test/fixtures/checklist-config.json | grep -q 'guarded 1/1, judgment 1'
