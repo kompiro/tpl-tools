@@ -51,6 +51,7 @@ direction.
 - [ADR-17](./17-tpl-body-source-paths.md) — Check the source paths a TPL body names, behind a repeatable --source-prefix (accepted)
 - [ADR-27](./27-generated-topic-grouped-index.md) — Generate the TPL index grouped by topic, from a config-named indexFile (accepted)
 - [ADR-31](./31-checklist-markers-enforcement-status.md) — Mark each checklist item as guarded or judgment, and derive a TPL's enforcement status from the marks (accepted)
+- [ADR-35](./35-index-check-off.md) — Let a config turn off tpl validate's index check, for an index written outside PRs (accepted)
 
 ### infrastructure
 
