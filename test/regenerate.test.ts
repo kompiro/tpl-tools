@@ -356,6 +356,17 @@ describe("regenerate CLI", () => {
     expect(err).toContain("index.md: index file not found");
   });
 
+  it('validate treats "indexCheck": true like an unset key', () => {
+    writeConfig({
+      idFormat: "issue-number",
+      topics: ["testing"],
+      indexFile: "index.md",
+      indexCheck: true,
+    });
+    expect(validate()).toBe(1);
+    expect(err).toContain("index.md: index file not found");
+  });
+
   describe('with "indexCheck": false', () => {
     const OFF = {
       idFormat: "issue-number",

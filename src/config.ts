@@ -51,6 +51,9 @@ export interface ReferenceData {
    * is not a finding. For a repo whose index is written outside its PRs (a
    * scheduled regeneration), where the index may lag or not exist yet.
    * `tpl regenerate` ignores it. Unset or `true` keeps the check.
+   *
+   * The CLI applies it by passing `validateAll` neither `readmePath` nor
+   * `indexPath`; a library caller does the same.
    */
   indexCheck?: boolean;
   /**
