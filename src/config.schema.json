@@ -32,6 +32,11 @@
       },
       "description": "Generated index file, relative to the TPL directory and inside it, with `/` separators (no backslash, no leading or trailing `/`, no `..`), and not named `TPL-*.md` directly in it, which would be read as a TPL (e.g. `index.md`). When set, `tpl regenerate` writes it, grouped by topic, and `tpl validate` checks it instead of README.md. Omit to keep a hand-maintained README index."
     },
+    "indexCheck": {
+      "type": "boolean",
+      "default": true,
+      "description": "`false` turns off every index check in `tpl validate`: neither `indexFile` nor README.md is read, so a missing or out-of-date index is not a finding. For a repo whose index is written outside its PRs (e.g. by a scheduled regeneration PR), where the index may lag or not exist yet. `tpl regenerate` ignores it."
+    },
     "checklistHeading": {
       "type": "string",
       "minLength": 1,

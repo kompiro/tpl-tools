@@ -392,6 +392,10 @@ interface ValidateOptions {
   tplDir: string;
   validTopics: readonly string[];
   validPackages: readonly string[] | null;
+  /**
+   * README holding a hand-maintained index table, checked when `indexPath` is
+   * not given. Omit both to skip the index check (`"indexCheck": false`).
+   */
   readmePath?: string;
   /**
    * Generated index file (`indexFile` in the config, resolved). When given it

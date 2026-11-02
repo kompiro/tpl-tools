@@ -76,6 +76,22 @@ describe("loadReferenceData", () => {
     expect(loadReferenceData(unset).indexFile).toBeUndefined();
   });
 
+  it("reads indexCheck, and leaves it unset when omitted", () => {
+    for (const indexCheck of [true, false]) {
+      const path = tmpFile("ref.json", JSON.stringify({ indexFile: "index.md", indexCheck }));
+      expect(loadReferenceData(path).indexCheck).toBe(indexCheck);
+    }
+    const unset = tmpFile("ref.json", JSON.stringify({ topics: [] }));
+    expect(loadReferenceData(unset)).not.toHaveProperty("indexCheck");
+  });
+
+  it("rejects an indexCheck that is not a boolean", () => {
+    for (const indexCheck of ["false", 0, null, {}]) {
+      const path = tmpFile("ref.json", JSON.stringify({ indexCheck }));
+      expect(() => loadReferenceData(path)).toThrow(/indexCheck/);
+    }
+  });
+
   it("reads checklistHeading, and leaves it unset when omitted", () => {
     const set = tmpFile("ref.json", JSON.stringify({ checklistHeading: "Checklist" }));
     expect(loadReferenceData(set).checklistHeading).toBe("Checklist");

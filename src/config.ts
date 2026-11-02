@@ -46,6 +46,17 @@ export interface ReferenceData {
    */
   indexFile?: string;
   /**
+   * `false` turns off every index check in `tpl validate`: neither the
+   * `indexFile` nor `README.md` is read, so a missing, lagging or stale index
+   * is not a finding. For a repo whose index is written outside its PRs (a
+   * scheduled regeneration), where the index may lag or not exist yet.
+   * `tpl regenerate` ignores it. Unset or `true` keeps the check.
+   *
+   * The CLI applies it by passing `validateAll` neither `readmePath` nor
+   * `indexPath`; a library caller does the same.
+   */
+  indexCheck?: boolean;
+  /**
    * Heading text of the checklist section (e.g. `Checklist`). When set, each
    * checklist item may end with a `[guard: …]` or `[judgment]` marker,
    * `tpl validate` checks the section and its markers, and the commands that
@@ -80,7 +91,8 @@ function isStringArray(v: unknown): v is string[] {
  *
  * The file is expected to contain a `topics` array of strings, an optional
  * `idFormat` string (`"date-sequence"` or `"issue-number"`), an optional
- * `indexFile` string, and an optional `checklistHeading` string. Other keys are
+ * `indexFile` string, an optional `indexCheck` boolean, and an optional
+ * `checklistHeading` string. Other keys are
  * ignored — this is intentionally lenient so the same file can serve other
  * tools. When `path` is `undefined`, returns empty reference data, which
  * disables topic validation entirely and falls back to the default id format.
@@ -162,6 +174,13 @@ export function loadReferenceData(path?: string): ReferenceData {
     indexFile = raw;
   }
 
+  if (obj.indexCheck !== undefined && typeof obj.indexCheck !== "boolean") {
+    throw new ReferenceDataInvalidError(
+      `${path}: "indexCheck" must be true or false, got ${JSON.stringify(obj.indexCheck)}`,
+    );
+  }
+  const indexCheck = obj.indexCheck as boolean | undefined;
+
   let checklistHeading: string | undefined;
   if (obj.checklistHeading !== undefined) {
     const raw = obj.checklistHeading;
@@ -185,6 +204,7 @@ export function loadReferenceData(path?: string): ReferenceData {
     idFormat,
     topics: topicsRaw,
     ...(indexFile === undefined ? {} : { indexFile }),
+    ...(indexCheck === undefined ? {} : { indexCheck }),
     ...(checklistHeading === undefined ? {} : { checklistHeading }),
   };
 }

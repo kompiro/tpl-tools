@@ -13,16 +13,19 @@ const HELP = `usage: tpl validate [options]
 
 Validate TPL frontmatter, filename conventions, cross-references, and the
 index: the file named by "indexFile" in the config, or README.md without it.
+"indexCheck": false in the config skips the index check.
 
 Options:
   --tpl-dir <path>         TPL directory (default: docs/test-perspectives)
   --config <path>          JSON file holding "topics" (controlled vocabulary,
                            optional), "idFormat" ("date-sequence" |
-                           "issue-number", default "date-sequence") and
+                           "issue-number", default "date-sequence"),
                            "indexFile" (the generated index to check instead
-                           of README.md, optional) and "checklistHeading"
-                           (the checklist section whose item markers are
-                           checked, optional; needs --source-prefix).
+                           of README.md, optional), "indexCheck" (false
+                           skips the index check, optional) and
+                           "checklistHeading" (the checklist section whose
+                           item markers are checked, optional; needs
+                           --source-prefix).
                            Defaults to ${CONFIG_FILENAME} in CWD when present;
                            omit and provide no ${CONFIG_FILENAME} to skip topic
                            validation and use the default id format.
@@ -102,12 +105,19 @@ export function main(argv: readonly string[]): number {
     return 2;
   }
 
+  // With the index check off, neither path is passed: passing only the README
+  // would bring back the README table check the config turned off.
+  const index =
+    refData.indexCheck === false
+      ? {}
+      : refData.indexFile === undefined
+        ? { readmePath }
+        : { readmePath, indexPath: join(tplDir, refData.indexFile) };
   const { findings, parsed: tpls } = validateAll({
     tplDir,
     validTopics: refData.topics,
     validPackages,
-    readmePath,
-    ...(refData.indexFile === undefined ? {} : { indexPath: join(tplDir, refData.indexFile) }),
+    ...index,
     idFormat: refData.idFormat,
     ...(refData.checklistHeading === undefined
       ? {}

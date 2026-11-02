@@ -355,4 +355,72 @@ describe("regenerate CLI", () => {
     expect(validate()).toBe(1);
     expect(err).toContain("index.md: index file not found");
   });
+
+  it('validate treats "indexCheck": true like an unset key', () => {
+    writeConfig({
+      idFormat: "issue-number",
+      topics: ["testing"],
+      indexFile: "index.md",
+      indexCheck: true,
+    });
+    expect(validate()).toBe(1);
+    expect(err).toContain("index.md: index file not found");
+  });
+
+  describe('with "indexCheck": false', () => {
+    const OFF = {
+      idFormat: "issue-number",
+      topics: ["testing"],
+      indexFile: "index.md",
+      indexCheck: false,
+    };
+    beforeEach(() => writeConfig(OFF));
+
+    it("validate passes with no index file and no README table", () => {
+      expect(validate()).toBe(0);
+      expect(err).toBe("");
+      expect(out).toContain("Validated 1 TPL(s).");
+    });
+
+    it("validate ignores an index that lacks a TPL or links a missing file", () => {
+      expect(regenerate()).toBe(0);
+      writeTpl("TPL-2", "testing");
+      writeFileSync(join(dir(), "index.md"), index() + "- [TPL-9](TPL-9-gone.md) — gone (#9)\n");
+      expect(validate()).toBe(0);
+      expect(err).toBe("");
+    });
+
+    it("validate does not read an index path it could not read", () => {
+      mkdirSync(join(dir(), "index.md"));
+      expect(validate()).toBe(0);
+      expect(err).toBe("");
+    });
+
+    it("validate does not fall back to the README table without indexFile", () => {
+      writeConfig({ idFormat: "issue-number", topics: ["testing"], indexCheck: false });
+      // A README table that lacks TPL-1 and links a file that does not exist.
+      writeFileSync(
+        join(dir(), "README.md"),
+        "# TPL\n\n| ID | Title |\n|---|---|\n| [TPL-9](TPL-9-gone.md) | gone |\n",
+      );
+      expect(validate()).toBe(0);
+      expect(err).toBe("");
+    });
+
+    it("still checks everything else", () => {
+      writeFileSync(join(dir(), "TPL-2-perspective.md"), TPL("TPL-3", "testing"));
+      expect(validate()).toBe(1);
+      expect(err).toContain("TPL-2-perspective.md");
+    });
+
+    it("regenerate and --check behave as with the check on", () => {
+      expect(regenerate("--check")).toBe(1);
+      expect(err).toContain("index.md is missing; run `tpl regenerate`");
+      expect(regenerate()).toBe(0);
+      expect(regenerate("--check")).toBe(0);
+      writeTpl("TPL-2", "testing");
+      expect(regenerate("--check")).toBe(1);
+      expect(err).toContain("index.md is out of date");
+    });
+  });
 });
