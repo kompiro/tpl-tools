@@ -1,5 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { findRelated, formatRelatedAsMarkdown } from "../src/related.ts";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  findRelated,
+  findRelatedByChangedFiles,
+  formatRelatedAsMarkdown,
+  sourceOfTestFile,
+} from "../src/related.ts";
 import type { ParsedTpl } from "../src/validate.ts";
 
 function makeTpl(
@@ -98,5 +106,167 @@ describe("formatRelatedAsMarkdown", () => {
 
   it("returns empty string when no matches", () => {
     expect(formatRelatedAsMarkdown([])).toBe("");
+  });
+});
+
+describe("sourceOfTestFile", () => {
+  const TS = [".test", ".spec"];
+
+  it("strips the infix before the extension", () => {
+    expect(sourceOfTestFile("packages/a/foo.test.ts", TS)).toBe("packages/a/foo.ts");
+    expect(sourceOfTestFile("packages/a/Foo.spec.tsx", TS)).toBe("packages/a/Foo.tsx");
+    expect(sourceOfTestFile("foo.test.js", TS)).toBe("foo.js");
+    expect(sourceOfTestFile("pkg/foo_test.go", ["_test"])).toBe("pkg/foo.go");
+  });
+
+  it("returns undefined for a file not named like a test", () => {
+    expect(sourceOfTestFile("packages/a/foo.ts", TS)).toBeUndefined();
+    expect(sourceOfTestFile("packages/a/latest.ts", TS)).toBeUndefined();
+    expect(sourceOfTestFile("packages/a/.test.ts", TS)).toBeUndefined();
+    expect(sourceOfTestFile("packages/a/Makefile", TS)).toBeUndefined();
+    expect(sourceOfTestFile("packages/a/foo.test.ts", [])).toBeUndefined();
+  });
+});
+
+describe("findRelatedByChangedFiles", () => {
+  let root: string;
+  const files = [
+    "packages/core/src/shared.ts",
+    "packages/core/src/only-a.ts",
+    "packages/core/src/parser.ts",
+    "packages/core/src/parser.test.ts",
+    "packages/core/src/orphan.test.ts",
+    ".github/workflows/ci.yml",
+    "docs/spec.md",
+  ];
+
+  beforeAll(() => {
+    root = mkdtempSync(join(tmpdir(), "tpl-related-changed-"));
+    for (const f of files) {
+      mkdirSync(join(root, f, ".."), { recursive: true });
+      writeFileSync(join(root, f), "");
+    }
+  });
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  const tpl = (id: string, body: string, extra: Partial<ParsedTpl["fm"]> = {}): ParsedTpl => ({
+    ...makeTpl({ id, title: id, topic: "x", ...extra }),
+    body,
+  });
+
+  const ids = (
+    corpus: ParsedTpl[],
+    changed: string[],
+    opts: { testFileInfixes?: string[] } = {},
+  ): string[] =>
+    findRelatedByChangedFiles(corpus, changed, {
+      sourcePrefixes: ["packages", ".github"],
+      repoRoot: root,
+      ...opts,
+    }).map((m) => m.tpl.fm.id);
+
+  it("matches a changed file the body names", () => {
+    const corpus = [tpl("TPL-1", "- `packages/core/src/only-a.ts`"), tpl("TPL-2", "nothing")];
+    expect(ids(corpus, ["packages/core/src/only-a.ts"])).toEqual(["TPL-1"]);
+  });
+
+  it("does not key on a directory, a path outside the prefixes, or a missing path", () => {
+    const corpus = [
+      tpl("TPL-1", "- `packages/core/src/` covers it"),
+      tpl("TPL-2", "- `docs/spec.md` covers it"),
+      tpl(
+        "TPL-3",
+        "<!-- absent-path-next-line: retired -->\n- `packages/core/src/gone.ts` covered it",
+      ),
+    ];
+    expect(
+      ids(corpus, ["packages/core/src/shared.ts", "docs/spec.md", "packages/core/src/gone.ts"]),
+    ).toEqual([]);
+  });
+
+  it("does not key on a path in a fenced block", () => {
+    const corpus = [tpl("TPL-1", "```sh\ncat `packages/core/src/only-a.ts`\n```")];
+    expect(ids(corpus, ["packages/core/src/only-a.ts"])).toEqual([]);
+  });
+
+  it("matches the source of a test file the body names", () => {
+    const corpus = [tpl("TPL-1", "- `packages/core/src/parser.test.ts`")];
+    expect(ids(corpus, ["packages/core/src/parser.ts"])).toEqual(["TPL-1"]);
+    expect(ids(corpus, ["packages/core/src/parser.ts"], { testFileInfixes: [] })).toEqual([]);
+  });
+
+  it("does not map a test file to a source that does not exist", () => {
+    const corpus = [tpl("TPL-1", "- `packages/core/src/orphan.test.ts`")];
+    expect(ids(corpus, ["packages/core/src/orphan.ts"])).toEqual([]);
+  });
+
+  it("matches scope.paths globs and ignores a malformed one", () => {
+    const corpus = [
+      tpl("TPL-1", "no file named", {
+        scope: { packages: [], paths: [".github/workflows/*.yml"] },
+      }),
+      tpl("TPL-2", "no file named", { scope: { packages: [], paths: [".github/{a,b}.yml"] } }),
+    ];
+    expect(ids(corpus, [".github/workflows/ci.yml", ".github/a.yml"])).toEqual(["TPL-1"]);
+  });
+
+  it("ranks by inverse fan-in, then by numeric id", () => {
+    const corpus = [
+      // shared.ts is named by three TPLs (1/3 each); only-a.ts by one (1).
+      tpl("TPL-1032", "- `packages/core/src/shared.ts`"),
+      tpl("TPL-219", "- `packages/core/src/shared.ts`"),
+      tpl("TPL-5", "- `packages/core/src/shared.ts` and `packages/core/src/only-a.ts`"),
+    ];
+    const result = findRelatedByChangedFiles(
+      corpus,
+      ["packages/core/src/shared.ts", "packages/core/src/only-a.ts"],
+      { sourcePrefixes: ["packages"], repoRoot: root },
+    );
+    expect(result.map((m) => [m.tpl.fm.id, m.weight])).toEqual([
+      ["TPL-5", 1 + 1 / 3],
+      ["TPL-219", 1 / 3],
+      ["TPL-1032", 1 / 3],
+    ]);
+    expect(result[0].files).toEqual(["packages/core/src/shared.ts", "packages/core/src/only-a.ts"]);
+  });
+
+  it("leaves deprecated TPLs out of both the list and the fan-in", () => {
+    const corpus = [
+      tpl("TPL-1", "- `packages/core/src/shared.ts`"),
+      tpl("TPL-2", "- `packages/core/src/shared.ts`", { status: "deprecated" }),
+    ];
+    const result = findRelatedByChangedFiles(corpus, ["packages/core/src/shared.ts"], {
+      sourcePrefixes: ["packages"],
+      repoRoot: root,
+    });
+    expect(result.map((m) => [m.tpl.fm.id, m.weight])).toEqual([["TPL-1", 1]]);
+  });
+
+  it("counts a file once per TPL even when two rules match it", () => {
+    const corpus = [
+      tpl("TPL-1", "- `packages/core/src/parser.ts` and `packages/core/src/parser.test.ts`", {
+        scope: { packages: [], paths: ["packages/core/**"] },
+      }),
+    ];
+    const [m] = findRelatedByChangedFiles(corpus, ["packages/core/src/parser.ts"], {
+      sourcePrefixes: ["packages"],
+      repoRoot: root,
+    });
+    expect([m.weight, m.files]).toEqual([1, ["packages/core/src/parser.ts"]]);
+  });
+});
+
+describe("formatRelatedAsMarkdown with matchedFiles", () => {
+  it("ends each line with the changed files that matched", () => {
+    const tpl = makeTpl({ id: "TPL-1", title: "t", topic: "x" });
+    const out = formatRelatedAsMarkdown([tpl], {
+      matchedFiles: new Map([["TPL-1", ["packages/a.ts", "packages/b.ts"]]]),
+    });
+    expect(out).toBe(
+      "- [TPL-1](docs/test-perspectives/TPL-1-x.md) — t · via `packages/a.ts`, `packages/b.ts`",
+    );
   });
 });

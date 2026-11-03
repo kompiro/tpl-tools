@@ -123,6 +123,44 @@ describe("validate CLI --source-prefix", () => {
     expect(err).toContain("takes one top-level directory name");
   });
 
+  it("reads the prefixes from the config when the flag is absent", () => {
+    writeFileSync(join(root, "tpl.config.json"), JSON.stringify({ sourcePrefixes: ["packages"] }));
+    writeTpl("- `packages/core/src/gone.ts` covers it");
+    expect(run([])).toBe(1);
+    expect(err).toContain("packages/core/src/gone.ts` does not exist");
+  });
+
+  it("lets the flag replace the config's prefixes", () => {
+    writeFileSync(join(root, "tpl.config.json"), JSON.stringify({ sourcePrefixes: ["packages"] }));
+    writeTpl("- `packages/core/src/gone.ts` and `scripts/gen.ts`");
+    expect(run(["--source-prefix", "scripts"])).toBe(1);
+    expect(err).toContain("scripts/gen.ts` does not exist");
+    expect(err).not.toContain("gone.ts");
+  });
+
+  it("reports a scope.paths glob that matches no file, and a malformed one", () => {
+    writeFileSync(
+      join(root, "docs/test-perspectives/TPL-20260907-01-perspective.md"),
+      TPL("- nothing here").replace(
+        "  packages: []",
+        '  packages: []\n  paths: ["packages/core/**/*.ts", "packages/ui/**", "packages/{a,b}.ts"]',
+      ),
+    );
+    expect(run([])).toBe(1);
+    expect(err).toContain('scope.paths glob "packages/ui/**" matches no file');
+    expect(err).toContain('scope.paths glob "packages/{a,b}.ts" uses syntax other than');
+    expect(err).not.toContain("packages/core/**/*.ts");
+  });
+
+  it("reports scope.paths that is not a list", () => {
+    writeFileSync(
+      join(root, "docs/test-perspectives/TPL-20260907-01-perspective.md"),
+      TPL("- nothing here").replace("  packages: []", "  packages: []\n  paths: packages/**"),
+    );
+    expect(run([])).toBe(1);
+    expect(err).toContain("scope.paths must be a list of path globs");
+  });
+
   it("rejects an empty prefix, which would turn the requested check off", () => {
     writeTpl("- `packages/core/src/gone.ts` covers it");
     expect(run(["--source-prefix="])).toBe(2);

@@ -6,6 +6,7 @@ import {
   ABSENT_PATH_MARKER,
   candidatePath,
   checkSourcePaths,
+  namedSourcePaths,
   sourcePathsInLine,
 } from "../src/source-paths.ts";
 
@@ -295,5 +296,40 @@ describe("checkSourcePaths", () => {
       const md = `宣言は \`<!-- ${ABSENT_PATH_MARKER}: <reason> -->\` と書く。\n`;
       expect(check(md)).toEqual([]);
     });
+  });
+});
+
+describe("namedSourcePaths", () => {
+  it("lists every path the prose names, once, whether or not it exists", () => {
+    const md = [
+      "- `packages/core/src/a.ts` and `scripts/gone.ts`",
+      "- `packages/core/src/a.ts` again, `docs/x.md` outside the prefixes",
+    ].join("\n");
+    expect(namedSourcePaths(md, PREFIXES)).toEqual(["packages/core/src/a.ts", "scripts/gone.ts"]);
+  });
+
+  it("leaves out fenced blocks and frontmatter", () => {
+    const md = [
+      "---",
+      "applicable_to: [`packages/fm.ts`]",
+      "---",
+      "```sh",
+      "cat `packages/fenced.ts`",
+      "```",
+      "`packages/prose.ts`",
+    ].join("\n");
+    expect(namedSourcePaths(md, PREFIXES)).toEqual(["packages/prose.ts"]);
+  });
+
+  it("reads a leading --- as a thematic break when told the frontmatter is gone", () => {
+    const body = ["---", "`packages/after-rule.ts`"].join("\n");
+    expect(namedSourcePaths(body, PREFIXES)).toEqual([]);
+    expect(namedSourcePaths(body, PREFIXES, { frontmatter: false })).toEqual([
+      "packages/after-rule.ts",
+    ]);
+  });
+
+  it("returns nothing without a prefix", () => {
+    expect(namedSourcePaths("`packages/a.ts`", new Set())).toEqual([]);
   });
 });

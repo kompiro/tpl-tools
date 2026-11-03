@@ -228,6 +228,8 @@ function quoteOffsets(line: string): number[] {
 interface ScannedLines {
   /** Frontmatter, a fence delimiter, or fenced content: not the record's prose. */
   skipped: boolean[];
+  /** Paths named on the line, in order. */
+  named: string[][];
   /** Paths named on the line that are not in the working tree. */
   missing: string[][];
 }
@@ -244,11 +246,14 @@ interface ScannedLines {
 function scanLines(
   lines: readonly string[],
   prefixes: ReadonlySet<string>,
-  repoRoot: string,
+  /** Where paths resolve; `undefined` skips the existence check. */
+  repoRoot: string | undefined,
+  frontmatter = true,
 ): ScannedLines {
   const skipped = lines.map(() => false);
+  const named = lines.map((): string[] => []);
   const missing = lines.map((): string[] => []);
-  let inFrontmatter = lines[0]?.trim() === "---";
+  let inFrontmatter = frontmatter && lines[0]?.trim() === "---";
   let openFence: { delim: string; depth: number; indent: number } | undefined;
   let paragraph: { text: string; index: number }[] = [];
 
@@ -265,12 +270,14 @@ function scanLines(
     for (const span of inlineCodeSpans(text)) {
       const path = candidatePath(span.content, prefixes);
       if (path === undefined) continue;
-      if (existsSync(resolve(repoRoot, path))) continue;
       // A path holds no newline, so the span that names one sits on a single
       // line of the paragraph.
       let line = 0;
       while (line + 1 < starts.length && starts[line + 1] <= span.index) line++;
-      missing[paragraph[line].index].push(path);
+      named[paragraph[line].index].push(path);
+      if (repoRoot !== undefined && !existsSync(resolve(repoRoot, path))) {
+        missing[paragraph[line].index].push(path);
+      }
     }
     paragraph = [];
   };
@@ -339,7 +346,29 @@ function scanLines(
   });
 
   flushParagraph();
-  return { skipped, missing };
+  return { skipped, named, missing };
+}
+
+/**
+ * Every source path a document's prose names, in order and without
+ * duplicates: the paths `checkSourcePaths` would check, whether or not they
+ * exist. Frontmatter and fenced blocks are left out the same way. Pass
+ * `frontmatter: false` for a body whose frontmatter is already removed, where
+ * a leading `---` is a thematic break rather than an opener.
+ *
+ * A path on the line below an `absent-path-next-line` declaration is
+ * included: the declaration says the path is absent, and a caller that wants
+ * live paths filters on existence anyway.
+ */
+export function namedSourcePaths(
+  markdown: string,
+  prefixes: ReadonlySet<string>,
+  options: { frontmatter?: boolean } = {},
+): string[] {
+  if (prefixes.size === 0) return [];
+  const lines = markdown.split("\n");
+  const { named } = scanLines(lines, prefixes, undefined, options.frontmatter ?? true);
+  return [...new Set(named.flat())];
 }
 
 /**

@@ -41,7 +41,8 @@ tpl <subcommand> [options]
   init           generate a starter tpl.config.json in the target dir (or CWD)
   validate       validate TPL frontmatter, filenames, cross-refs, the index
   regenerate     write the topic-grouped TPL index named by "indexFile"
-  related        list active TPLs matching a topic (markdown for Design Docs)
+  related        list active TPLs matching a topic, or a change's files
+
   checklist      list checklist items with their markers (guard, judgment, ...)
   review-body    print the body for a periodic TPL deprecation-review issue
 ```
@@ -49,8 +50,8 @@ tpl <subcommand> [options]
 ### Configuration (`tpl.config.json`)
 
 `tpl` reads reference data (the controlled `topics` vocabulary, the
-`idFormat`, and the optional `indexFile`, `indexCheck` and `checklistHeading`) from a JSON
-file. Resolution order:
+`idFormat`, and the optional `indexFile`, `indexCheck`, `checklistHeading`,
+`sourcePrefixes` and `testFileInfixes`) from a JSON file. Resolution order:
 
 1. an explicit `--config <path>` (highest priority)
 2. `tpl.config.json` in the working directory, when present
@@ -82,20 +83,30 @@ tpl validate [--tpl-dir <path>] [--config <path>] [--packages-root <path>]
 - `--config` — JSON file holding `topics` (controlled vocabulary, optional),
   `idFormat` (optional, see below), `indexFile` and `indexCheck` (optional, see
   [`tpl regenerate`](#tpl-regenerate)) and `checklistHeading` (optional, see
-  [Checklist markers](#checklist-markers-and-enforcement-status)). Defaults to `tpl.config.json` in CWD
+  [Checklist markers](#checklist-markers-and-enforcement-status)) and
+  `sourcePrefixes` (optional, see below). Defaults to `tpl.config.json` in CWD
   when present; **omit and provide no `tpl.config.json` to skip topic
   validation and use the default id format.**
 - `--packages-root` — directory whose immediate subdirectories are the allowed
   values for `scope.packages`. Omit to skip that check (non-monorepo repos).
 - `--source-prefix` — top-level directory holding source; repeat for several.
-  Omit to skip the body source-path check. See below.
+  Replaces the config's `sourcePrefixes`. With neither, the body source-path
+  check is skipped. See below.
+
+`validate` also checks that each `scope.paths` glob matches at least one file
+(see [`tpl related`](#tpl-related)).
 
 Exit code `0` = clean, `1` = findings, `2` = usage / I/O error.
 
 #### Source paths named in a TPL body
 
 A TPL can cite a test or source file that has since been deleted, and nothing
-notices. `--source-prefix` turns that into a finding:
+notices. Source prefixes turn that into a finding, set in the config or on the
+command line (the flag replaces the config's list):
+
+```json
+{ "sourcePrefixes": ["packages", "scripts"] }
+```
 
 ```sh
 tpl validate --source-prefix packages --source-prefix scripts
@@ -166,14 +177,14 @@ least one top-level list item in it, and well-formed markers:
   read; a bracketed `[guard…` or `[judgment…` outside one must be a well-formed
   marker at the end (the bare words "guard" and "judgment" are just prose);
 - every guard path is a file path the source-path check reads (a whole span,
-  under a `--source-prefix`, no `:line`, glob or trailing `/`), names a file
+  under a source prefix, no `:line`, glob or trailing `/`), names a file
   rather than a directory, exists, and is not under `absent-path-next-line`.
 
 An item's nested lines belong to it, so for an item with sub-items the marker
 goes after the last nested line.
 
 Since a guard that no prefix covers would pass unchecked, `tpl validate` with
-`checklistHeading` set and no `--source-prefix` is a usage error.
+`checklistHeading` set and no source prefix is a usage error.
 
 The markers give each TPL an **enforcement status**, derived and never stored,
 so it cannot drift from the checklist:
@@ -283,12 +294,54 @@ the regeneration PR with `--check` instead.
 ```
 tpl related <topic> [--package <pkg>] [--tpl-dir <path>] [--config <path>] [--path-prefix <p>]
             [--status]
+tpl related --changed-files <path>... | --base <ref>
+            [--limit <n>] [--source-prefix <dir>]... [--tpl-dir <path>] [--config <path>]
+            [--path-prefix <p>] [--status]
 ```
 
-Prints a markdown bullet list of active TPLs matching `<topic>`, ready to paste
-into a Design Doc's "Related TPLs" section. `--status` ends each line with the
-TPL's enforcement status (needs `checklistHeading`); it is off by default
-because the plain list is what gets pasted.
+With `<topic>`, prints a markdown bullet list of active TPLs of that topic,
+ready to paste into a Design Doc's "Related TPLs" section. `--status` ends each
+line with the TPL's enforcement status (needs `checklistHeading`); it is off by
+default because the plain list is what gets pasted.
+
+With `--changed-files` (the positional arguments are the files) or `--base`
+(the files `git diff --name-only <ref>...HEAD` lists), prints the active TPLs
+related to that change, for a PR author to check before review:
+
+```sh
+tpl related --base origin/main
+```
+
+A TPL is related to a changed file when
+
+- a code span in its body names that file: the same paths the
+  [source-path check](#source-paths-named-in-a-tpl-body) reads, so it needs
+  source prefixes, and only those that are files (a directory never equals a
+  changed file);
+- its body names a test file and the changed file is the source it covers
+  (`foo.test.ts` → `foo.ts`, by `testFileInfixes`, default `[".test", ".spec"]`;
+  `[]` turns this off); or
+- a glob in its `scope.paths` matches the changed file.
+
+Most specific first: each matched file adds `1 / (how many active TPLs match
+it)`, so a file every renderer TPL names counts for less than one only this TPL
+names, and ties go by id. Each line ends with the files it matched. `--limit`
+(default 10, `0` for all) cuts the list and says how many were left out. With
+no match it says so and exits `0`; it is a reminder, not a gate.
+
+`scope.paths` is an optional list of globs for a TPL whose body names no single
+file it is about, such as a rule for every workflow:
+
+```yaml
+scope:
+  packages: []
+  paths: [".github/workflows/*.yml"]
+```
+
+Only `*` (within a segment), `**` (a whole segment, any depth) and `?` are
+read; `tpl validate` rejects other glob syntax and reports a glob that matches
+no file, since a key that never fires is the rot the source-path check exists
+for. Keep them narrow: a broad glob puts the TPL in nearly every list.
 
 ### `tpl checklist`
 
@@ -355,6 +408,7 @@ import {
   validateAll,
   loadReferenceData,
   findRelated,
+  findRelatedByChangedFiles,
   formatRelatedAsMarkdown,
   renderIndex,
   renderReviewBody,

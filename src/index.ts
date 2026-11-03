@@ -1,11 +1,13 @@
 export {
   CONFIG_FILENAME,
   DEFAULT_ID_FORMAT,
+  DEFAULT_TEST_FILE_INFIXES,
   ID_FORMATS,
   loadReferenceData,
   ReferenceDataInvalidError,
   ReferenceDataMissingError,
   resolveConfigPath,
+  sourcePrefixError,
   type IdFormat,
   type ReferenceData,
 } from "./config.ts";
@@ -29,6 +31,7 @@ export {
 } from "./checklist.ts";
 export { runInit, type InitResult } from "./init.ts";
 export {
+  checkScopePathsMatch,
   formatFinding,
   loadAllTpls,
   parseFrontmatter,
@@ -42,7 +45,14 @@ export {
   type ParsedTpl,
   type Status,
 } from "./validate.ts";
-export { findRelated, formatRelatedAsMarkdown } from "./related.ts";
+export {
+  findRelated,
+  findRelatedByChangedFiles,
+  formatRelatedAsMarkdown,
+  sourceOfTestFile,
+  type ChangedFileMatch,
+} from "./related.ts";
+export { compileGlob, globBase, globMatchesAFile, globSyntaxError, matchesGlob } from "./glob.ts";
 export { renderIndex } from "./regenerate.ts";
 export { renderReviewBody, type ReviewBodyOptions } from "./review-body.ts";
 export {
@@ -51,6 +61,7 @@ export {
   absentPathReason,
   candidatePath,
   checkSourcePaths,
+  namedSourcePaths,
   sourcePathsInLine,
   type SourcePathFinding,
   type SourcePathFindingKind,
