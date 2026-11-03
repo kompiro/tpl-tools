@@ -8,6 +8,7 @@ import {
   ReferenceDataMissingError,
   loadReferenceData,
   resolveConfigPath,
+  sourcePrefixError,
 } from "../src/config.ts";
 
 function tmpFile(name: string, contents: string): string {
@@ -184,5 +185,49 @@ describe("loadReferenceData", () => {
   it("throws when the top level is not an object", () => {
     const path = tmpFile("ref.json", JSON.stringify(["a"]));
     expect(() => loadReferenceData(path)).toThrow(ReferenceDataInvalidError);
+  });
+
+  it("loads sourcePrefixes and testFileInfixes", () => {
+    const path = tmpFile(
+      "c.json",
+      JSON.stringify({ sourcePrefixes: ["packages", ".github"], testFileInfixes: ["_test"] }),
+    );
+    expect(loadReferenceData(path)).toMatchObject({
+      sourcePrefixes: ["packages", ".github"],
+      testFileInfixes: ["_test"],
+    });
+  });
+
+  it("leaves both keys out when the file does not set them", () => {
+    const loaded = loadReferenceData(tmpFile("c.json", "{}"));
+    expect("sourcePrefixes" in loaded).toBe(false);
+    expect("testFileInfixes" in loaded).toBe(false);
+  });
+
+  it.each([["packages/core"], [""], [".."], ["a\\b"]])(
+    "rejects a source prefix that cannot be one path segment: %j",
+    (prefix) => {
+      const path = tmpFile("c.json", JSON.stringify({ sourcePrefixes: [prefix] }));
+      expect(() => loadReferenceData(path)).toThrow(
+        /"sourcePrefixes" holds top-level directory names/,
+      );
+    },
+  );
+
+  it("rejects sourcePrefixes that is not a string array", () => {
+    const path = tmpFile("c.json", JSON.stringify({ sourcePrefixes: "packages" }));
+    expect(() => loadReferenceData(path)).toThrow(ReferenceDataInvalidError);
+  });
+
+  it.each([[[""]], [["a/b"]], [".test"]])("rejects testFileInfixes %j", (value) => {
+    const path = tmpFile("c.json", JSON.stringify({ testFileInfixes: value }));
+    expect(() => loadReferenceData(path)).toThrow(/"testFileInfixes" must be/);
+  });
+});
+
+describe("sourcePrefixError", () => {
+  it("accepts one directory name, a dot directory included", () => {
+    expect(sourcePrefixError("packages")).toBeUndefined();
+    expect(sourcePrefixError(".github")).toBeUndefined();
   });
 });

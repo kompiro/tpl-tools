@@ -41,3 +41,5 @@ jobs:
           node dist/cli.js validate --tpl-dir test/fixtures/tpl-checklist --config test/fixtures/checklist-config.json --source-prefix src
           node dist/cli.js related testing --status --tpl-dir test/fixtures/tpl-checklist --config test/fixtures/checklist-config.json | grep -q 'guarded 1/1, judgment 1'
           node dist/cli.js checklist --marker unguarded --tpl-dir test/fixtures/tpl-checklist --config test/fixtures/checklist-config.json | grep -q '^TPL-20260102-02'
+          node dist/cli.js related --changed-files src/checklist.ts --source-prefix src --tpl-dir test/fixtures/tpl-checklist --config test/fixtures/checklist-config.json | grep -q 'TPL-20260102-01.*via `src/checklist.ts`'
+          node dist/cli.js related --base HEAD --source-prefix src --tpl-dir test/fixtures/tpl-checklist --config test/fixtures/checklist-config.json

@@ -8,11 +8,13 @@ import {
 } from "../config.ts";
 import { formatFinding, validateAll } from "../validate.ts";
 import { parseFlags } from "./args.ts";
+import { resolveSourcePrefixes } from "./source-prefixes.ts";
 
 const HELP = `usage: tpl validate [options]
 
-Validate TPL frontmatter, filename conventions, cross-references, and the
-index: the file named by "indexFile" in the config, or README.md without it.
+Validate TPL frontmatter, filename conventions, cross-references, that each
+scope.paths glob matches a file, and the index: the file named by "indexFile"
+in the config, or README.md without it.
 "indexCheck": false in the config skips the index check.
 
 Options:
@@ -24,8 +26,9 @@ Options:
                            of README.md, optional), "indexCheck" (false
                            skips the index check, optional) and
                            "checklistHeading" (the checklist section whose
-                           item markers are checked, optional; needs
-                           --source-prefix).
+                           item markers are checked, optional; needs source
+                           prefixes) and "sourcePrefixes" (see
+                           --source-prefix, optional).
                            Defaults to ${CONFIG_FILENAME} in CWD when present;
                            omit and provide no ${CONFIG_FILENAME} to skip topic
                            validation and use the default id format.
@@ -36,8 +39,10 @@ Options:
                            TPL body is checked against the working tree when
                            its first path segment is one of these. Repeat the
                            flag for several (--source-prefix packages
-                           --source-prefix scripts). Paths resolve relative to
-                           the working directory. Omit to skip the check.
+                           --source-prefix scripts). Replaces the config's
+                           "sourcePrefixes". Paths resolve relative to the
+                           working directory. With neither, the check is
+                           skipped.
   -h, --help               Show this help`;
 
 const VALUE_FLAGS = new Set(["tpl-dir", "config", "packages-root", "source-prefix"]);
@@ -79,28 +84,16 @@ export function main(argv: readonly string[]): number {
       : [];
   }
 
-  // Read every occurrence: `options` keeps only the last, and this flag is
-  // meant to be repeated.
-  const sourcePrefixes = parsed.optionsAll.get("source-prefix") ?? [];
-  for (const prefix of sourcePrefixes) {
-    // `--source-prefix=` parses as an empty value, which no first path segment
-    // can equal, so the check the caller asked for would run over nothing. A
-    // usage error says so rather than reporting a clean corpus.
-    if (prefix === "") {
-      process.stderr.write("error: --source-prefix takes a directory name, not an empty value\n");
-      return 2;
-    }
-    if (prefix.includes("/") || prefix.includes("\\")) {
-      process.stderr.write(
-        `error: --source-prefix takes one top-level directory name, not a path: ${prefix}\n`,
-      );
-      return 2;
-    }
+  const resolved = resolveSourcePrefixes(parsed, refData);
+  if ("error" in resolved) {
+    process.stderr.write(`error: ${resolved.error}\n`);
+    return 2;
   }
+  const sourcePrefixes = resolved.prefixes;
 
   if (refData.checklistHeading !== undefined && sourcePrefixes.length === 0) {
     process.stderr.write(
-      'error: "checklistHeading" is set, so guard paths must be checked: pass --source-prefix for each top-level directory a guard may name\n',
+      'error: "checklistHeading" is set, so guard paths must be checked: set "sourcePrefixes" in the config or pass --source-prefix for each top-level directory a guard may name\n',
     );
     return 2;
   }

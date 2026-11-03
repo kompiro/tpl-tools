@@ -1,4 +1,5 @@
 import { checkChecklist } from "./checklist.ts";
+import { globMatchesAFile, globSyntaxError } from "./glob.ts";
 import { ABSENT_PATH_MARKER, checkSourcePaths } from "./source-paths.ts";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -29,6 +30,12 @@ export interface Frontmatter {
   topic: string;
   scope: {
     packages: string[];
+    /**
+     * Optional path globs (`*`, `**`, `?`) naming files this TPL is about,
+     * for a TPL whose body names no single file. `tpl related
+     * --changed-files` matches them in addition to the body's paths.
+     */
+    paths?: string[];
   };
 }
 
@@ -52,6 +59,9 @@ export type Finding =
   | { kind: "related-to-dangling"; file: string; ref: string }
   | { kind: "duplicate-id"; id: string; files: string[] }
   | { kind: "scope-package-missing"; file: string; pkg: string }
+  | { kind: "scope-paths-invalid"; file: string }
+  | { kind: "scope-path-invalid"; file: string; glob: string; reason: string }
+  | { kind: "scope-path-unmatched"; file: string; glob: string }
   | { kind: "deprecated-no-rationale"; file: string }
   | { kind: "readme-missing-row"; tplId: string; index?: string }
   | { kind: "readme-row-points-to-missing-file"; tplId: string; href: string; index?: string }
@@ -260,6 +270,8 @@ export function validateFile(
     }
   }
 
+  for (const finding of checkScopePathsSyntax(fm.scope, file)) findings.push(finding);
+
   if (fm.status === "deprecated") {
     const lower = parsed.body.toLowerCase();
     // Heuristic: deprecated rationale should explicitly mention deprecation.
@@ -274,6 +286,47 @@ export function validateFile(
     body: parsed.body,
   };
   return { findings, parsed: tpl };
+}
+
+/** The globs in `scope.paths`, or `undefined` when the field is absent or not a list. */
+function scopePaths(scope: unknown): unknown[] | undefined {
+  if (!scope || typeof scope !== "object" || Array.isArray(scope)) return undefined;
+  const paths = (scope as { paths?: unknown }).paths;
+  return Array.isArray(paths) ? paths : undefined;
+}
+
+function checkScopePathsSyntax(scope: unknown, file: string): Finding[] {
+  if (!scope || typeof scope !== "object" || Array.isArray(scope)) return [];
+  const raw = (scope as { paths?: unknown }).paths;
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || !raw.every((g) => typeof g === "string")) {
+    return [{ kind: "scope-paths-invalid", file }];
+  }
+  const findings: Finding[] = [];
+  for (const glob of raw as string[]) {
+    const reason = globSyntaxError(glob);
+    if (reason !== undefined) findings.push({ kind: "scope-path-invalid", file, glob, reason });
+  }
+  return findings;
+}
+
+/**
+ * `scope.paths` globs that match no file under `repoRoot`. Globs that are not
+ * well formed are skipped: `validateFile` already reports them.
+ */
+export function checkScopePathsMatch(
+  tpl: ParsedTpl,
+  repoRoot: string,
+  cache: Map<string, readonly string[]> = new Map(),
+): Finding[] {
+  const findings: Finding[] = [];
+  for (const glob of scopePaths(tpl.fm.scope) ?? []) {
+    if (typeof glob !== "string" || globSyntaxError(glob) !== undefined) continue;
+    if (!globMatchesAFile(glob, repoRoot, cache)) {
+      findings.push({ kind: "scope-path-unmatched", file: tpl.file, glob });
+    }
+  }
+  return findings;
 }
 
 // ---------------------------------------------------------------------------
@@ -505,6 +558,8 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
 
   findings.push(...validateUniqueIds(parsed));
   findings.push(...validateRelatedTo(parsed));
+  const globCache = new Map<string, readonly string[]>();
+  for (const p of parsed) findings.push(...checkScopePathsMatch(p, repoRoot, globCache));
 
   if (opts.indexPath !== undefined) {
     const index = basename(opts.indexPath);
@@ -565,6 +620,12 @@ export function formatFinding(f: Finding): string {
       return `id ${f.id} is claimed by ${f.files.length} files: ${f.files.join(", ")}`;
     case "scope-package-missing":
       return `${f.file}: scope.packages references missing package "${f.pkg}"`;
+    case "scope-paths-invalid":
+      return `${f.file}: scope.paths must be a list of path globs`;
+    case "scope-path-invalid":
+      return `${f.file}: scope.paths glob "${f.glob}" ${f.reason}`;
+    case "scope-path-unmatched":
+      return `${f.file}: scope.paths glob "${f.glob}" matches no file`;
     case "deprecated-no-rationale":
       return `${f.file}: status=deprecated but body has no deprecation rationale`;
     case "readme-missing-row":

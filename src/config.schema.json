@@ -41,7 +41,23 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[^#\\s](?:[^\\r\\n]*[^\\s])?$",
-      "description": "Heading text of the checklist section, without `#` (e.g. `Checklist`). When set, each checklist item may end with `[guard: `path`]` (enforced by the named file) or `[judgment]` (not decidable by a program); `tpl validate` requires the section, at least one item, and well-formed markers, and needs `--source-prefix` to check guard paths; `tpl regenerate`, `tpl related --status`, `tpl checklist` and `tpl review-body` show the enforcement status derived from the markers. Omit to turn all of this off."
+      "description": "Heading text of the checklist section, without `#` (e.g. `Checklist`). When set, each checklist item may end with `[guard: `path`]` (enforced by the named file) or `[judgment]` (not decidable by a program); `tpl validate` requires the section, at least one item, and well-formed markers, and needs source prefixes (`sourcePrefixes` or `--source-prefix`) to check guard paths; `tpl regenerate`, `tpl related --status`, `tpl checklist` and `tpl review-body` show the enforcement status derived from the markers. Omit to turn all of this off."
+    },
+    "sourcePrefixes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^/\\\\]+$",
+        "not": { "enum": [".", ".."] }
+      },
+      "description": "Top-level directories that hold source (e.g. `packages`, `scripts`, `.github`). A code span in a TPL body counts as a source path only when its first segment is one of these: `tpl validate` checks that the path exists, and `tpl related --changed-files` / `--base` recall the TPL when that file changes. `--source-prefix` on the command line replaces this list. Omit to read no path from the body."
+    },
+    "testFileInfixes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "pattern": "^[^/\\\\]+$" },
+      "default": [".test", ".spec"],
+      "description": "What a test file's name adds just before its extension (`foo.test.ts` → `foo.ts`; `_test` maps `foo_test.go` → `foo.go`). A TPL whose body names a test file is also recalled by `tpl related --changed-files` / `--base` when that source changes. An empty list turns the mapping off."
     }
   }
 }

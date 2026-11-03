@@ -64,6 +64,38 @@ export interface ReferenceData {
    * off.
    */
   checklistHeading?: string;
+  /**
+   * Top-level directories that hold source (e.g. `packages`, `scripts`). A
+   * code span in a TPL body counts as a source path only when its first
+   * segment is one of these: `tpl validate` checks those paths exist, and
+   * `tpl related --changed-files` / `--base` match changed files against them.
+   * `--source-prefix` on the command line replaces this list. Unset means no
+   * prefix, so both read nothing from the body.
+   */
+  sourcePrefixes?: readonly string[];
+  /**
+   * How a test file's name relates to its source's: the part a test file adds
+   * just before its extension (`foo.test.ts` → `foo.ts`, `foo_test.go` →
+   * `foo.go`). A TPL naming a test file is also recalled when that source
+   * changes. Unset uses `DEFAULT_TEST_FILE_INFIXES`; an empty list turns the
+   * mapping off.
+   */
+  testFileInfixes?: readonly string[];
+}
+
+/** The TypeScript / JavaScript test-file conventions, `foo.test.ts` and `foo.spec.ts`. */
+export const DEFAULT_TEST_FILE_INFIXES: readonly string[] = [".test", ".spec"];
+
+/**
+ * Why `prefix` cannot be a source prefix, or `undefined` when it can. A prefix
+ * is compared with a path's first segment, so anything that cannot be one
+ * segment would make the check run over nothing.
+ */
+export function sourcePrefixError(prefix: string): string | undefined {
+  if (prefix === "") return "is empty";
+  if (prefix.includes("/") || prefix.includes("\\")) return "is a path, not one directory name";
+  if (prefix === "." || prefix === "..") return 'is "." or ".."';
+  return undefined;
 }
 
 export class ReferenceDataInvalidError extends Error {
@@ -91,8 +123,9 @@ function isStringArray(v: unknown): v is string[] {
  *
  * The file is expected to contain a `topics` array of strings, an optional
  * `idFormat` string (`"date-sequence"` or `"issue-number"`), an optional
- * `indexFile` string, an optional `indexCheck` boolean, and an optional
- * `checklistHeading` string. Other keys are
+ * `indexFile` string, an optional `indexCheck` boolean, an optional
+ * `checklistHeading` string, and optional `sourcePrefixes` and
+ * `testFileInfixes` string arrays. Other keys are
  * ignored — this is intentionally lenient so the same file can serve other
  * tools. When `path` is `undefined`, returns empty reference data, which
  * disables topic validation entirely and falls back to the default id format.
@@ -200,11 +233,42 @@ export function loadReferenceData(path?: string): ReferenceData {
     checklistHeading = raw;
   }
 
+  let sourcePrefixes: string[] | undefined;
+  if (obj.sourcePrefixes !== undefined) {
+    if (!isStringArray(obj.sourcePrefixes)) {
+      throw new ReferenceDataInvalidError(`${path}: "sourcePrefixes" must be an array of strings`);
+    }
+    for (const prefix of obj.sourcePrefixes) {
+      const error = sourcePrefixError(prefix);
+      if (error !== undefined) {
+        throw new ReferenceDataInvalidError(
+          `${path}: "sourcePrefixes" holds top-level directory names, but ${JSON.stringify(prefix)} ${error}`,
+        );
+      }
+    }
+    sourcePrefixes = obj.sourcePrefixes;
+  }
+
+  let testFileInfixes: string[] | undefined;
+  if (obj.testFileInfixes !== undefined) {
+    if (
+      !isStringArray(obj.testFileInfixes) ||
+      obj.testFileInfixes.some((x) => x === "" || x.includes("/") || x.includes("\\"))
+    ) {
+      throw new ReferenceDataInvalidError(
+        `${path}: "testFileInfixes" must be an array of non-empty strings without "/" or "\\" (e.g. [".test", ".spec"]), got ${JSON.stringify(obj.testFileInfixes)}`,
+      );
+    }
+    testFileInfixes = obj.testFileInfixes;
+  }
+
   return {
     idFormat,
     topics: topicsRaw,
     ...(indexFile === undefined ? {} : { indexFile }),
     ...(indexCheck === undefined ? {} : { indexCheck }),
     ...(checklistHeading === undefined ? {} : { checklistHeading }),
+    ...(sourcePrefixes === undefined ? {} : { sourcePrefixes }),
+    ...(testFileInfixes === undefined ? {} : { testFileInfixes }),
   };
 }
