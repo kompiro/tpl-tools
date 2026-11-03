@@ -63,8 +63,8 @@ inverse fan-in and cut at `--limit`. Move the source prefixes into `tpl.config.j
 
 ## Ranking and output
 
-- Each matched file contributes `1 / fan-in`, where fan-in is the number of active TPLs
-  that match it. A file that every renderer TPL names counts for less than one that only
+- Each matched file contributes `1 / fan-in`, where fan-in is the number of listed TPLs
+  that match it (active ones by default; the library's `includeStatus` widens that). A file that every renderer TPL names counts for less than one that only
   this TPL names. Deprecated TPLs count in neither the list nor the fan-in.
 - Weights within 1e-9 are a tie and go by numeric id (`TPL-219` before `TPL-1032`), so
   float rounding cannot reorder equal TPLs.
@@ -82,7 +82,8 @@ inverse fan-in and cut at `--limit`. Move the source prefixes into `tpl.config.j
   that never fires.
 - `tpl validate` reports a glob that matches no file in the tree. This is ADR-17's rot
   check, applied to the new key.
-- The walk skips `.git` and the build-output segments, as `candidatePath` does. Symlinked
+- The walk skips `.git` and the build-output segments (`build`, `coverage`, `dist`,
+  `node_modules`, `out`), as `candidatePath` does. Symlinked
   files count as files, and symlinked directories are not entered. To keep `validate`
   and `related` in agreement:
   - a glob that names such a segment is rejected;
@@ -96,7 +97,7 @@ inverse fan-in and cut at `--limit`. Move the source prefixes into `tpl.config.j
 - **Config-held prefixes.** ADR-17 rejected `sourcePathPrefixes` in config as "the wrong
   order before a single consumer exists". kompiro/karasu is that consumer now, and
   the same list is needed by both `validate` and `related`. The flag stays and replaces
-  the config's list. Neither has a default: without a prefix the body is not read, and
+  the config's list. Neither source of prefixes has a default: without a prefix the body is not read, and
   `related` in changed-file mode treats that as a usage error, because every body-keyed
   TPL would silently drop out.
 - **An in-repo matcher.** `engines.node >=20` rules out `path.matchesGlob`, and ADR-6
