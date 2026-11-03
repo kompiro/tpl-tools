@@ -173,18 +173,24 @@ describe("findRelatedByChangedFiles", () => {
     expect(ids(corpus, ["packages/core/src/only-a.ts"])).toEqual(["TPL-1"]);
   });
 
-  it("does not key on a directory, a path outside the prefixes, or a missing path", () => {
+  it("does not key on a directory or a path outside the prefixes", () => {
     const corpus = [
       tpl("TPL-1", "- `packages/core/src/` covers it"),
       tpl("TPL-2", "- `docs/spec.md` covers it"),
+    ];
+    // `--changed-files` can name a directory; git never lists one.
+    expect(ids(corpus, ["packages/core/src", "docs/spec.md"])).toEqual([]);
+  });
+
+  it("keeps a missing path as a key, so deleting the file recalls the TPL", () => {
+    const corpus = [
       tpl(
-        "TPL-3",
-        "<!-- absent-path-next-line: retired -->\n- `packages/core/src/gone.ts` covered it",
+        "TPL-1",
+        "<!-- absent-path-next-line: deleted in this PR -->\n- `packages/core/src/gone.ts` covered it",
       ),
     ];
-    expect(
-      ids(corpus, ["packages/core/src/shared.ts", "docs/spec.md", "packages/core/src/gone.ts"]),
-    ).toEqual([]);
+    expect(ids(corpus, ["packages/core/src/gone.ts"])).toEqual(["TPL-1"]);
+    expect(ids(corpus, ["packages/core/src/shared.ts"])).toEqual([]);
   });
 
   it("does not key on a path in a fenced block", () => {
@@ -198,9 +204,26 @@ describe("findRelatedByChangedFiles", () => {
     expect(ids(corpus, ["packages/core/src/parser.ts"], { testFileInfixes: [] })).toEqual([]);
   });
 
-  it("does not map a test file to a source that does not exist", () => {
+  it("maps a test file to its source even when the source is gone", () => {
     const corpus = [tpl("TPL-1", "- `packages/core/src/orphan.test.ts`")];
-    expect(ids(corpus, ["packages/core/src/orphan.ts"])).toEqual([]);
+    // A PR that deletes orphan.ts lists it as changed.
+    expect(ids(corpus, ["packages/core/src/orphan.ts"])).toEqual(["TPL-1"]);
+    expect(ids(corpus, ["packages/core/src/orphan.tsx"])).toEqual([]);
+  });
+
+  it("breaks a tie by id even when float sums differ in the last bit", () => {
+    // Ten files each named by ten TPLs sum to 0.9999999999999999, not 1.
+    const shared = Array.from({ length: 10 }, (_, i) => `packages/core/src/f${i}.ts`);
+    const many = shared.map((f) => `\`${f}\``).join(" ");
+    const corpus = [
+      tpl("TPL-2", "- `packages/core/src/only-a.ts`"),
+      tpl("TPL-1", `- ${many}`),
+      ...Array.from({ length: 9 }, (_, i) => tpl(`TPL-${100 + i}`, `- ${many}`)),
+    ];
+    expect(ids(corpus, ["packages/core/src/only-a.ts", ...shared]).slice(0, 2)).toEqual([
+      "TPL-1",
+      "TPL-2",
+    ]);
   });
 
   it("matches scope.paths globs and ignores a malformed one", () => {

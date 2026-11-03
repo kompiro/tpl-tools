@@ -28,6 +28,9 @@ describe("globSyntaxError", () => {
     ["packages/[ab].ts", "other than"],
     ["!packages/a.ts", "other than"],
     ["packages/a**.ts", "whole path segment"],
+    ["packages/*/dist/*.js", 'goes through "dist"'],
+    ["node_modules/**", 'goes through "node_modules"'],
+    [".git/config", 'goes through ".git"'],
   ])("rejects %s", (glob, reason) => {
     expect(globSyntaxError(glob)).toContain(reason);
   });
@@ -89,6 +92,7 @@ describe("globMatchesAFile", () => {
     mkdirSync(join(root, ".git"), { recursive: true });
     writeFileSync(join(root, ".git/only.cfg"), "");
     symlinkSync(join(root, "packages"), join(root, "packages/core/loop"));
+    symlinkSync(join(root, "packages/core/src/a.ts"), join(root, "packages/core/linked.ts"));
   });
 
   afterAll(() => {
@@ -106,13 +110,18 @@ describe("globMatchesAFile", () => {
     expect(globMatchesAFile("scripts/*.ts", root)).toBe(false);
   });
 
+  it("counts a symlink to a file as a file", () => {
+    expect(globMatchesAFile("packages/core/linked.ts", root)).toBe(true);
+  });
+
   it("does not count a directory as a match", () => {
-    expect(globMatchesAFile("packages/core/*", root)).toBe(false);
+    expect(globMatchesAFile("packages/*", root)).toBe(false);
   });
 
   it("skips .git and build output, and does not follow symlinks", () => {
     expect(globMatchesAFile("**/only.js", root)).toBe(false);
     expect(globMatchesAFile("**/only.cfg", root)).toBe(false);
+    // The walk stops at the symlinked directory rather than entering it.
     expect(globMatchesAFile("packages/**/loop/**", root)).toBe(false);
   });
 

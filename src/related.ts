@@ -67,13 +67,16 @@ export function sourceOfTestFile(path: string, infixes: readonly string[]): stri
   return undefined;
 }
 
-function isFile(path: string): boolean {
+function isDirectory(path: string): boolean {
   try {
-    return statSync(path).isFile();
+    return statSync(path).isDirectory();
   } catch {
     return false;
   }
 }
+
+/** Weights closer than this are a tie, so float rounding cannot beat the id order. */
+const WEIGHT_EPSILON = 1e-9;
 
 /** What a changed file has to equal, or match, to recall one TPL. */
 interface TplKeys {
@@ -84,9 +87,10 @@ interface TplKeys {
 /**
  * The keys a TPL is recalled by: each file its body names under a source
  * prefix, the source of each such file that is a test, and its `scope.paths`
- * globs. Only paths that are files in the tree count. A directory would never
- * equal a changed file, and a missing path is `tpl validate`'s finding, not a
- * key.
+ * globs. A path that is a directory in the tree is left out, since it names
+ * many files rather than one. A missing path stays a key: a change that
+ * deletes or restores the file is the one the TPL most needs to be seen for,
+ * and `tpl validate` reports the dangling path on its own.
  */
 function keysOf(
   tpl: ParsedTpl,
@@ -96,10 +100,10 @@ function keysOf(
 ): TplKeys {
   const files = new Set<string>();
   for (const path of namedSourcePaths(tpl.body, prefixes, { frontmatter: false })) {
-    if (!isFile(resolve(repoRoot, path))) continue;
+    if (isDirectory(resolve(repoRoot, path))) continue;
     files.add(path);
     const source = sourceOfTestFile(path, infixes);
-    if (source !== undefined && isFile(resolve(repoRoot, source))) files.add(source);
+    if (source !== undefined) files.add(source);
   }
   const scope = tpl.fm.scope as { paths?: unknown } | undefined;
   const raw = Array.isArray(scope?.paths) ? scope.paths : [];
@@ -152,7 +156,11 @@ export function findRelatedByChangedFiles(
       files,
       weight: files.reduce((sum, f) => sum + 1 / fanIn.get(f)!, 0),
     }))
-    .sort((a, b) => b.weight - a.weight || compareIds(a.tpl.fm.id, b.tpl.fm.id));
+    .sort((a, b) =>
+      Math.abs(b.weight - a.weight) < WEIGHT_EPSILON
+        ? compareIds(a.tpl.fm.id, b.tpl.fm.id)
+        : b.weight - a.weight,
+    );
 }
 
 interface FormatOptions {

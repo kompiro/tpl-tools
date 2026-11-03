@@ -6,7 +6,7 @@
 // rejected rather than read literally: a `{a,b}` that silently matches nothing
 // is a key that never fires, which is the failure this field exists to avoid.
 
-import { type Dirent, readdirSync } from "node:fs";
+import { type Dirent, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { GENERATED_SEGMENTS } from "./source-paths.ts";
 
@@ -27,6 +27,10 @@ export function globSyntaxError(glob: string): string | undefined {
   const segments = glob.split("/");
   if (segments.some((s) => s === "")) return 'has an empty segment ("//")';
   if (segments.some((s) => s === "." || s === "..")) return 'has a "." or ".." segment';
+  // `tpl validate` does not walk these, so a glob through one could never be
+  // shown to match a file; `candidatePath` drops body paths through them too.
+  const skipped = segments.find((s) => s === ".git" || GENERATED_SEGMENTS.has(s));
+  if (skipped !== undefined) return `goes through "${skipped}", which is not searched`;
   if (segments.some((s) => s !== "**" && s.includes("**"))) {
     return '"**" must be a whole path segment';
   }
@@ -82,11 +86,19 @@ export function globBase(glob: string): string {
   return base.join("/");
 }
 
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The files under `dir`, as paths relative to `root` with `/` separators.
  * `.git` and the build-output segments are not walked, the way
- * `candidatePath` ignores them, and symlinks are not followed, so a link loop
- * cannot hang the walk.
+ * `candidatePath` ignores them. A symlink to a file counts as a file, but a
+ * symlinked directory is not entered, so a link loop cannot hang the walk.
  */
 function listFiles(root: string, dir: string): string[] {
   const out: string[] = [];
@@ -101,7 +113,7 @@ function listFiles(root: string, dir: string): string[] {
     if (entry.isDirectory()) {
       if (entry.name === ".git" || GENERATED_SEGMENTS.has(entry.name)) continue;
       out.push(...listFiles(root, rel));
-    } else if (entry.isFile()) {
+    } else if (entry.isFile() || (entry.isSymbolicLink() && isFile(join(root, rel)))) {
       out.push(rel);
     }
   }

@@ -1,4 +1,4 @@
-import type { ReferenceData } from "../config.ts";
+import { type ReferenceData, sourcePrefixError } from "../config.ts";
 import type { ParsedFlags } from "./args.ts";
 
 /**
@@ -24,6 +24,12 @@ export function resolveSourcePrefixes(
     }
     if (prefix.includes("/") || prefix.includes("\\")) {
       return { error: `--source-prefix takes one top-level directory name, not a path: ${prefix}` };
+    }
+    const error = sourcePrefixError(prefix);
+    if (error !== undefined) {
+      return {
+        error: `--source-prefix takes one top-level directory name, but ${prefix} ${error}`,
+      };
     }
   }
   return { prefixes: fromFlags };

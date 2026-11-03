@@ -42,7 +42,6 @@ tpl <subcommand> [options]
   validate       validate TPL frontmatter, filenames, cross-refs, the index
   regenerate     write the topic-grouped TPL index named by "indexFile"
   related        list active TPLs matching a topic, or a change's files
-
   checklist      list checklist items with their markers (guard, judgment, ...)
   review-body    print the body for a periodic TPL deprecation-review issue
 ```
@@ -316,8 +315,8 @@ A TPL is related to a changed file when
 
 - a code span in its body names that file: the same paths the
   [source-path check](#source-paths-named-in-a-tpl-body) reads, so it needs
-  source prefixes, and only those that are files (a directory never equals a
-  changed file);
+  source prefixes, except those that are directories. A path that no longer
+  exists still counts, so a change deleting the file recalls the TPL;
 - its body names a test file and the changed file is the source it covers
   (`foo.test.ts` → `foo.ts`, by `testFileInfixes`, default `[".test", ".spec"]`;
   `[]` turns this off); or
@@ -339,7 +338,8 @@ scope:
 ```
 
 Only `*` (within a segment), `**` (a whole segment, any depth) and `?` are
-read; `tpl validate` rejects other glob syntax and reports a glob that matches
+read, and a glob may not go through `.git` or build output (`node_modules`,
+`dist`, ...), which is not searched; `tpl validate` rejects anything else and reports a glob that matches
 no file, since a key that never fires is the rot the source-path check exists
 for. Keep them narrow: a broad glob puts the TPL in nearly every list.
 

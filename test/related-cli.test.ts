@@ -112,6 +112,13 @@ describe("related CLI", () => {
     expect(out).not.toContain("more of");
   });
 
+  it("normalizes the paths given, so ./ or an absolute path still matches", () => {
+    expect(
+      run(["--changed-files", "./packages/core/src/b.ts", join(root, "packages/core/src/a.ts")]),
+    ).toBe(0);
+    expect(out).toContain("via `packages/core/src/b.ts`, `packages/core/src/a.ts`");
+  });
+
   it("exits 0 when no file is given", () => {
     expect(run(["--changed-files"])).toBe(0);
     expect(err).toContain("No changed files");
@@ -150,6 +157,8 @@ describe("related CLI", () => {
     [["testing", "--limit", "3"], "--limit applies to --changed-files and --base"],
     [["--changed-files", "x", "--limit", "ten"], "--limit takes a whole number"],
     [["--changed-files", "x", "--source-prefix", "a/b"], "not a path"],
+    [["--changed-files", "x", "--source-prefix", ".."], 'is "." or ".."'],
+    [["--base=--output=pwned"], "--base takes a git ref"],
   ])("rejects %j", (args, message) => {
     expect(run(args)).toBe(2);
     expect(err).toContain(message);

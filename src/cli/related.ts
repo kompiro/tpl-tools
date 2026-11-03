@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { isAbsolute, posix, relative, resolve } from "node:path";
 import {
   CONFIG_FILENAME,
   loadReferenceData,
@@ -56,6 +56,16 @@ const VALUE_FLAGS = new Set([
   "source-prefix",
 ]);
 
+/**
+ * A changed file as a body path is written: relative to `cwd`, with `/`
+ * separators and no `./`. Without this `./packages/a.ts` would match nothing
+ * and the listing would look clean.
+ */
+function normalizeChangedFile(file: string, cwd: string): string {
+  const rel = isAbsolute(file) ? relative(cwd, file) : file;
+  return posix.normalize(rel.replaceAll("\\", "/"));
+}
+
 /** The files changed since `base`, relative to `cwd`, or an error message. */
 function changedSince(base: string, cwd: string): { files: string[] } | { error: string } {
   try {
@@ -90,6 +100,12 @@ export function main(argv: readonly string[]): number {
   const base = parsed.options.get("base");
   if (byFiles && base !== undefined) {
     process.stderr.write("error: pass either --changed-files or --base, not both\n");
+    return 2;
+  }
+  if (base !== undefined && (base === "" || base.startsWith("-"))) {
+    // git would read a leading "-" as an option of its own (`--output=...`
+    // writes a file), and no ref starts with one.
+    process.stderr.write(`error: --base takes a git ref, got ${JSON.stringify(base)}\n`);
     return 2;
   }
   const byChanges = byFiles || base !== undefined;
@@ -203,7 +219,7 @@ export function main(argv: readonly string[]): number {
     }
     changed = diff.files;
   } else {
-    changed = parsed.positional;
+    changed = parsed.positional.map((f) => normalizeChangedFile(f, cwd));
   }
   if (changed.length === 0) {
     process.stderr.write("No changed files, so no TPL to list.\n");
