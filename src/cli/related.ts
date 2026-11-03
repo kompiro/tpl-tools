@@ -29,6 +29,7 @@ Options:
                        relative to the working directory
   --base <ref>         Use the files changed since <ref>, as
                        \`git diff --name-only <ref>...HEAD\` lists them
+                       (both paths of a rename)
   --limit <n>          With --changed-files or --base, list at most <n>
                        (default ${DEFAULT_LIMIT}; 0 lists all)
   --source-prefix <dir>
@@ -70,10 +71,11 @@ function normalizeChangedFile(file: string, cwd: string): string {
 function changedSince(base: string, cwd: string): { files: string[] } | { error: string } {
   try {
     // `--relative` makes the paths relative to `cwd`, which is where body
-    // paths resolve; `-z` keeps unusual file names intact.
+    // paths resolve; `-z` keeps unusual file names intact. `--no-renames`
+    // lists a renamed file's old path too, which TPLs still name.
     const out = execFileSync(
       "git",
-      ["diff", "--name-only", "--relative", "-z", `${base}...HEAD`, "--"],
+      ["diff", "--name-only", "--no-renames", "--relative", "-z", `${base}...HEAD`, "--"],
       { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
     return { files: out.split("\0").filter((f) => f !== "") };

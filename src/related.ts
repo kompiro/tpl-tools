@@ -3,7 +3,7 @@ import { posix, resolve } from "node:path";
 import { formatStatus, statusOf } from "./checklist.ts";
 import { DEFAULT_TEST_FILE_INFIXES } from "./config.ts";
 import { compileGlob, globSyntaxError } from "./glob.ts";
-import { namedSourcePaths } from "./source-paths.ts";
+import { GENERATED_SEGMENTS, namedSourcePaths } from "./source-paths.ts";
 import type { ParsedTpl, Status } from "./validate.ts";
 
 interface RelatedFilter {
@@ -113,6 +113,15 @@ function keysOf(
   return { files, globs };
 }
 
+/**
+ * Whether a glob may match `path`. `tpl validate` proves a glob live by
+ * walking the tree without entering `.git` or build output, so a match there
+ * is one validate could never see; leaving it out keeps the two in agreement.
+ */
+function globbable(path: string): boolean {
+  return !path.split("/").some((s) => s === ".git" || GENERATED_SEGMENTS.has(s));
+}
+
 /** Compare TPL ids so that `TPL-219` sorts before `TPL-1032`. */
 function compareIds(a: string, b: string): number {
   return a.localeCompare(b, "en", { numeric: true });
@@ -144,7 +153,9 @@ export function findRelatedByChangedFiles(
   for (const tpl of parsed) {
     if (!statusSet.has(tpl.fm.status)) continue;
     const keys = keysOf(tpl, prefixes, repoRoot, infixes);
-    const files = changed.filter((f) => keys.files.has(f) || keys.globs.some((g) => g.test(f)));
+    const files = changed.filter(
+      (f) => keys.files.has(f) || (globbable(f) && keys.globs.some((g) => g.test(f))),
+    );
     if (files.length === 0) continue;
     hits.set(tpl, files);
     for (const f of files) fanIn.set(f, (fanIn.get(f) ?? 0) + 1);

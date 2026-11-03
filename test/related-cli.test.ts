@@ -117,6 +117,10 @@ describe("related CLI", () => {
       run(["--changed-files", "./packages/core/src/b.ts", join(root, "packages/core/src/a.ts")]),
     ).toBe(0);
     expect(out).toContain("via `packages/core/src/b.ts`, `packages/core/src/a.ts`");
+
+    out = "";
+    expect(run(["--changed-files", "packages\\core\\src\\b.ts"])).toBe(0);
+    expect(out).toContain("via `packages/core/src/b.ts`");
   });
 
   it("exits 0 when no file is given", () => {
@@ -140,6 +144,20 @@ describe("related CLI", () => {
     expect(out.trim()).toBe(
       "- [TPL-2](docs/test-perspectives/TPL-2-ab.md) — TPL-2 title · via `packages/core/src/b.ts`",
     );
+  });
+
+  it("lists the old path of a renamed file, which TPLs still name", () => {
+    // Git does not detect a rename of an empty file, so give it content.
+    write("packages/core/src/b.ts", "export const b = 1;\n".repeat(5));
+    git("init", "-q", "-b", "main");
+    git("add", ".");
+    git("commit", "-q", "-m", "init");
+    git("mv", "packages/core/src/b.ts", "packages/core/src/c.ts");
+    git("commit", "-q", "-m", "rename");
+
+    expect(run(["--base", "HEAD~1"])).toBe(0);
+    expect(out).toContain("[TPL-2]");
+    expect(out).toContain("via `packages/core/src/b.ts`");
   });
 
   it("reports a git failure as a usage error", () => {

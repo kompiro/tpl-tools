@@ -226,6 +226,12 @@ describe("findRelatedByChangedFiles", () => {
     ]);
   });
 
+  it("does not let a glob match under build output, which validate never searches", () => {
+    const corpus = [tpl("TPL-1", "none", { scope: { packages: [], paths: ["packages/**/*.js"] } })];
+    expect(ids(corpus, ["packages/x/dist/a.js"])).toEqual([]);
+    expect(ids(corpus, ["packages/x/src/a.js"])).toEqual(["TPL-1"]);
+  });
+
   it("matches scope.paths globs and ignores a malformed one", () => {
     const corpus = [
       tpl("TPL-1", "no file named", {

@@ -304,7 +304,8 @@ line with the TPL's enforcement status (needs `checklistHeading`); it is off by
 default because the plain list is what gets pasted.
 
 With `--changed-files` (the positional arguments are the files) or `--base`
-(the files `git diff --name-only <ref>...HEAD` lists), prints the active TPLs
+(the files `git diff --name-only <ref>...HEAD` lists, with both paths of a
+rename), prints the active TPLs
 related to that change, for a PR author to check before review:
 
 ```sh
@@ -338,10 +339,10 @@ scope:
 ```
 
 Only `*` (within a segment), `**` (a whole segment, any depth) and `?` are
-read, and a glob may not go through `.git` or build output (`node_modules`,
-`dist`, ...), which is not searched; `tpl validate` rejects anything else and reports a glob that matches
-no file, since a key that never fires is the rot the source-path check exists
-for. Keep them narrow: a broad glob puts the TPL in nearly every list.
+read. Files under `.git` or build output (`node_modules`, `dist`, ...) are
+never matched, and a glob naming such a segment is rejected. `tpl validate`
+rejects other syntax and reports a glob that matches no file, since a key that
+never fires is the rot the source-path check exists for. Keep them narrow: a broad glob puts the TPL in nearly every list.
 
 ### `tpl checklist`
 
