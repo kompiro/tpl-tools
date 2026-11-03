@@ -65,7 +65,8 @@ inverse fan-in and cut at `--limit`. Move the source prefixes into `tpl.config.j
 
 - Each matched file contributes `1 / fan-in`, where fan-in is the number of listed TPLs
   that match it (active ones by default; the library's `includeStatus` widens that). A file that every renderer TPL names counts for less than one that only
-  this TPL names. Deprecated TPLs count in neither the list nor the fan-in.
+  this TPL names. With the default filter, deprecated TPLs count in neither the list
+  nor the fan-in; if `includeStatus` adds them, they count in both.
 - Weights within 1e-9 are a tie and go by numeric id (`TPL-219` before `TPL-1032`), so
   float rounding cannot reorder equal TPLs.
 - `--limit` defaults to 10, and `0` lists all. A cut list ends with how many were left
