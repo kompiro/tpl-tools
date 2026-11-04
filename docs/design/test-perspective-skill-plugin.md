@@ -13,7 +13,7 @@ TPL を書くスキル `test-perspective` は kompiro/hane にある（`skills/t
 その後 tooling は tpl-tools に切り出され、書き方の規則の多くを tpl-tools が決めるようになった。スキルはそれを後から追いかけている:
 
 - **索引**: ADR-27 で索引が生成ファイルになり、ADR-35 で PR が索引に触れない運用ができた。スキルは「一覧表に行を追加する」と書いたままで、kompiro/hane#99（kompiro/hane#100 で修正）まで気づかれなかった
-- **チェックリストのマーカー**: ADR-31 の `checklistHeading` を設定した host では、`tpl validate` がその見出しの節と 1 つ以上の項目を求め、項目末尾の `[guard: \`path\`]` / `[judgment]` マーカーの形を検査する。スキルはこれを知らないので、自分の雛形の見出し（「チェックリスト」）で書いて節が無いと落とされるか、マーカーを付けずに書いて、守られている項目まで `unguarded` と表示される。`tpl validate` を自分で呼ぶと、必須の `--source-prefix` を渡さず usage error にもなる
+- **チェックリストのマーカー**: ADR-31 の `checklistHeading` を設定した host では、`tpl validate` がその見出しの節と 1 つ以上の項目を求め、項目末尾の `` [guard: `path`] `` / `[judgment]` マーカーの形を検査する。スキルはこれを知らないので、自分の雛形の見出し（「チェックリスト」）で書いて節が無いと落とされるか、マーカーを付けずに書いて、守られている項目まで `unguarded` と表示される。`tpl validate` を自分で呼ぶと、必須の `--source-prefix` を渡さず usage error にもなる
 - **id の既定**: tpl-tools の `idFormat` の既定は `date-sequence`（`TPL-YYYYMMDD-NN`）だが、スキルの既定は Issue 番号ベース（`TPL-<n>`）。スキルは config を読まずに自分の既定で書く
 - **雛形が 2 つある**: このリポジトリの `docs/test-perspectives/TEMPLATE.md`（host へのコピー用）と hane の `skills/test-perspective/TEMPLATE.md` はすでに内容が違う（`id` の例、`known_consumers` の扱い、`discovered_from` の書き方）
 
@@ -71,7 +71,7 @@ hane にスキルを置いたまま、tpl-tools の CI か hane の CI で「SKI
 2. **スキルの移設**: hane の `skills/test-perspective/{SKILL.md,TEMPLATE.md}` を `skills/test-perspective/` に移す。最初の PR は移設に留め、本文の変更は host 依存の言い回しを CLI の名指しに変える程度にする（下の 3〜5 は同じ PR で行うが、規則の中身は変えない）。言語は日本語のまま（hane の本文と揃え、翻訳は別件）
 3. **規則のずれを直す**: 移設と同じ PR で、背景に挙げたずれを直す
    - 採番: `tpl.config.json`（または host が `--config` で渡すファイル）の `idFormat` に従う。config が無いときは CLI の既定（`date-sequence`）に従う、と書く。Issue 番号ベースの優先順位（Issue → PR → ローカル採番）は `issue-number` のときの規則として残す
-   - チェックリスト: config に `checklistHeading` があるときは、その見出しの節にチェックリストを書く。マーカーは、項目を実際に守っているファイルがあるとき（`[guard: \`path\`]`）か、プログラムでは判定できない項目のとき（`[judgment]`）だけ付ける。どちらでもない項目にはマーカーを付けず、`unguarded` のまま残す（ADR-31。マーカーの無い項目は有効で、守られていない項目に `[guard]` を付けるのはマーカーが無いより悪い）
+   - チェックリスト: config に `checklistHeading` があるときは、その見出しの節にチェックリストを書く。マーカーは、項目を実際に守っているファイルがあるとき（`` [guard: `path`] ``）か、プログラムでは判定できない項目のとき（`[judgment]`）だけ付ける。どちらでもない項目にはマーカーを付けず、`unguarded` のまま残す（ADR-31。マーカーの無い項目は有効で、守られていない項目に `[guard]` を付けるのはマーカーが無いより悪い）
    - 索引: kompiro/hane#100 の内容（生成索引は PR で触らない）を、`indexFile` / `indexCheck` の名前で書き直す
    - 検証の呼び方: スキルは `tpl validate` のフラグを自分で組み立てず、host が CI やパッケージの script で実行している呼び方（例: `pnpm tpl:validate`）をそのまま使う。host にそれが無く、自分で `tpl validate` を呼ぶときは、`checklistHeading` が設定されていれば `--source-prefix` が必須になる（無いと usage error）。その場合、渡す prefix は host のソースを置いている最上位ディレクトリ（`src` / `packages` / `scripts` など、guard が名指しうるもの）で、guard の path はそのいずれかの下に解決できなければならない。prefix が決められないときはユーザーに尋ねる
 4. **雛形を 1 つにする**: `skills/test-perspective/TEMPLATE.md` を正とし、`docs/test-perspectives/TEMPLATE.md` は削除して README からスキルの雛形を指す。host へのコピー用という役割は、スキルの雛形をコピーすれば満たせる
