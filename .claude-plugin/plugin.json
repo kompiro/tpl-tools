@@ -1,0 +1,8 @@
+{
+  "name": "tpl-tools",
+  "version": "0.0.14",
+  "description": "Claude Code skill for writing Test Perspective Library (TPL) records under the rules the tpl CLI checks.",
+  "author": { "name": "Hiroki Kondo" },
+  "repository": "https://github.com/kompiro/tpl-tools",
+  "license": "MIT"
+}
