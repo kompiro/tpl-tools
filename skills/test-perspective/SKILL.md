@@ -36,7 +36,7 @@ TPL を書く前に、ホスト repo が `tpl` をどう使っているかを確
 
 ### config
 
-`tpl` は `tpl.config.json`（作業ディレクトリ）か、`--config` で渡されたファイル（例: adr-tools と共有する `adr.config.json`）を読む。ホスト repo の script が `--config` を渡していればそのファイルを読む。config にあるキーはホスト repo の CLI が知っているキーなので、キーがあればその規則に従い、無ければその規則は無いものとして扱う:
+`tpl` は `tpl.config.json`（作業ディレクトリ）か、`--config` で渡されたファイル（例: adr-tools と共有する `adr.config.json`）を読む。ホスト repo の script が `--config` を渡していればそのファイルを読む。キーがあればその規則に従い、無ければその規則は無いものとして扱う（CLI は知らないキーを無視するので、版で入ったキーは config に書いてあっても、ホスト repo の CLI がその版より古ければ効かない。下記「古い CLI」）:
 
 | キー | 書くときに従うこと |
 | --- | --- |
@@ -45,7 +45,7 @@ TPL を書く前に、ホスト repo が `tpl` をどう使っているかを確
 | `indexFile` / `indexCheck` | 索引が生成ファイルかどうか（下記「索引」）。`indexCheck` の既定は `true` |
 | `checklistHeading` | チェックリストの節の見出しと、項目末尾のマーカー（下記「チェックリスト」） |
 | `sourcePrefixes` | 本文のコードスパンのうちソースのパスとして扱う最上位ディレクトリ。`tpl validate` が実在を検査し、`tpl related --changed-files` がこれで TPL を引く（tpl-tools v0.0.14 以降） |
-| `testFileInfixes` | テストファイル名からソースを引く規則。既定は `[".test",".spec"]`（`foo.test.ts` → `foo.ts`） |
+| `testFileInfixes` | テストファイル名からソースを引く規則。既定は `[".test",".spec"]`（`foo.test.ts` → `foo.ts`。tpl-tools v0.0.14 以降） |
 
 ### 使うサブコマンド
 
@@ -55,6 +55,14 @@ TPL を書く前に、ホスト repo が `tpl` をどう使っているかを確
 - `tpl checklist` — チェックリスト項目とマーカーを一覧する
 - `tpl review-body` — 定期 deprecation レビューの Issue 本文を出す（下記「deprecate」）
 - `tpl init` — `tpl.config.json` の雛形を作る（TPL を新設するときだけ）
+
+### 古い CLI
+
+このスキルは、版で入った機能に「tpl-tools vX 以降」と書いている。`tpl` に `--version` は無いので、ホスト repo の CLI がその機能を持つかは `tpl <subcommand> --help` に出てくるかで確かめる（lock file や `node_modules/@kompiro/tpl-tools/package.json` の版を見てもよい）。持たないときは次で代える:
+
+- `tpl related --changed-files` / `--base` が無い（v0.0.13 以前）: 変更したファイルのパスで `docs/test-perspectives/` の本文を grep し、`tpl related <topic>` の結果と合わせる
+- `sourcePrefixes` / `testFileInfixes` が効かない（v0.0.13 以前）: config に書き足さない。`tpl validate` に prefix が要るときは `--source-prefix` で渡す（下記「検証」）
+- `scope.paths` が読まれない（v0.0.13 以前）: 書かない。検査も recall もされない glob になる
 
 ### その他
 
@@ -140,7 +148,7 @@ config に `checklistHeading` があれば、`tpl validate` はその見出し�
 作成後に `tpl validate` を実行し、finding が無くなるまで直す（終了コード `0` = clean、`1` = finding、`2` = 使い方の誤りか I/O エラー）。
 
 - ホスト repo の script（例: `pnpm tpl:validate`）があればそれを使う。ホスト repo が渡しているフラグ（`--config` / `--packages-root` / `--source-prefix` 等）がそのまま効く
-- 自分で `tpl validate` を呼ぶときは、ホスト repo の CI の呼び方に揃える。config に `checklistHeading` があって `sourcePrefixes` が無いと、`--source-prefix` が必須になる（無いと終了コード `2`）。渡す prefix は、ホスト repo がソースを置いている最上位ディレクトリ（`src` / `packages` / `scripts` など、guard が名指しうるもの）で、guard の path はそのいずれかの下に解決できなければならない。決められなければユーザーに尋ねる
+- 自分で `tpl validate` を呼ぶときは、ホスト repo の CI の呼び方に揃える。config に `checklistHeading` があって `sourcePrefixes` が無いと（CLI が v0.0.13 以前なら `sourcePrefixes` があっても）、`--source-prefix` が必須になる（無いと終了コード `2`）。渡す prefix は、ホスト repo がソースを置いている最上位ディレクトリ（`src` / `packages` / `scripts` など、guard が名指しうるもの）で、guard の path はそのいずれかの下に解決できなければならない。決められなければユーザーに尋ねる
 - CLI が無いホスト repo では、雛形冒頭の規約メモに沿って frontmatter を手で確認する
 
 > proactive を引用した DesignDoc は、その実装 PR で該当チェックリスト項目の contract test と AT AC を着地させる（"forward 運用"）。`acceptance-test` スキルがこの転記を行う。
