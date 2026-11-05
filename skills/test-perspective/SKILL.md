@@ -42,7 +42,7 @@ TPL を書く前に、ホスト repo が `tpl` をどう使っているかを確
 | --- | --- |
 | `idFormat` | id とファイル名の形式。既定は `date-sequence`（`TPL-YYYYMMDD-NN`）、もう一方は `issue-number`（`TPL-<n>`）。config が無いときも既定の `date-sequence` になる |
 | `topics` | `topic` はこの語彙のどれか。無ければ free-form の小文字 kebab。ホスト repo が ADR の語彙（`adr.config.json` の `topics` 等）を持つなら TPL と共有する |
-| `indexFile` / `indexCheck` | 索引が生成ファイルかどうか（下記「索引」）。`indexCheck` の既定は `true` |
+| `indexFile` / `indexCheck` | 索引が生成ファイルかどうか（下記「索引」）。`indexCheck` の既定は `true`（`indexCheck` は tpl-tools v0.0.13 以降） |
 | `checklistHeading` | チェックリストの節の見出しと、項目末尾のマーカー（下記「チェックリスト」） |
 | `sourcePrefixes` | 本文のコードスパンのうちソースのパスとして扱う最上位ディレクトリ。`tpl validate` が実在を検査し、`tpl related --changed-files` がこれで TPL を引く（tpl-tools v0.0.14 以降） |
 | `testFileInfixes` | テストファイル名からソースを引く規則。既定は `[".test",".spec"]`（`foo.test.ts` → `foo.ts`。tpl-tools v0.0.14 以降） |
@@ -50,7 +50,7 @@ TPL を書く前に、ホスト repo が `tpl` をどう使っているかを確
 ### 使うサブコマンド
 
 - `tpl validate` — 作成・更新・deprecate の後に必ず実行する（下記「検証」）
-- `tpl related <topic>` — 同じ topic の active TPL を一覧する。tpl-tools v0.0.14 以降は `tpl related --changed-files <path>...` / `--base <ref>` で、変更したファイルから TPL を引ける
+- `tpl related <topic>` — 同じ topic の active TPL を一覧する。tpl-tools v0.0.14 以降は `tpl related --changed-files <path>...` / `--base <ref>` で、変更したファイルから TPL を引ける。この 2 つは本文のパスを読むので、config に `sourcePrefixes` が無ければ `--source-prefix` が要る（無いと終了コード `2`。渡す prefix は下記「検証」と同じ決め方で、決められなければユーザーに尋ねる）
 - `tpl regenerate` — 生成索引を書く。**ホスト repo が索引を PR の外で更新する運用なら、PR では実行しない**（下記「索引」）
 - `tpl checklist` — チェックリスト項目とマーカーを一覧する
 - `tpl review-body` — 定期 deprecation レビューの Issue 本文を出す（下記「deprecate」）
@@ -63,6 +63,7 @@ TPL を書く前に、ホスト repo が `tpl` をどう使っているかを確
 - `tpl related --changed-files` / `--base` が無い（v0.0.13 以前）: 変更したファイルのパスで `docs/test-perspectives/` の本文を grep し、`tpl related <topic>` の結果と合わせる
 - `sourcePrefixes` / `testFileInfixes` が効かない（v0.0.13 以前）: config に書き足さない。`tpl validate` に prefix が要るときは `--source-prefix` で渡す（下記「検証」）
 - `scope.paths` が読まれない（v0.0.13 以前）: 書かない。検査も recall もされない glob になる
+- `indexCheck` が効かない（v0.0.12 以前）: config に `indexCheck: false` があっても `tpl validate` は索引を検査するので、PR の外で更新する索引は TPL を足すたびに行の欠けで落ちる。PR に索引の差分は含めないまま、ユーザーに v0.0.13 以降への更新を提案する
 
 ### その他
 
@@ -209,7 +210,7 @@ retrospective TPL   ← bug 修正と同じ PR で書く（不可避な学習）
 
 - **DesignDoc 作成時**（`design-doc` スキル）: 該当 `topic` / `scope.packages` の既存 TPL を一覧し（`tpl related <topic>`）、さらに同じ topic の `concepts*` / 関連 ADR を読んで、まだ TPL になっていない原則で今回の設計が違反しうるものがないか確認する。あれば 3-Yes ルールに照らして proactive TPL を **同じ PR で** 起こす（このスキルを呼ぶ）
 - **新機能の実装時 / 受け入れテスト作成時**（`acceptance-test` スキル）: AC を書く前に該当 TPL のチェックリストを確認し、引用した proactive TPL のチェックリスト項目を AC に転記する
-- **PR を開く前**: 変更したファイルから関連 TPL を引き（`tpl related --base <ref>`、v0.0.14 以降）、チェックリストを確認する
+- **PR を開く前**: 変更したファイルから関連 TPL を引き（`tpl related --base <ref>`、v0.0.14 以降）、チェックリストを確認する。`--base` は `<ref>` と `HEAD` を比べるので、コミットしていない変更は入らない。先にコミットするか、そのパスを `--changed-files` で渡す
 - **bug 修正時**: 同じパターンの TPL がすでに存在しないか確認し、あれば `discovered_from` に追記する。なければ 3-Yes ルールで retrospective TPL の新規作成を検討する。併せて「この bug は proactive TPL を書いていれば防げたか?」も自問する
 
 `design-doc` / `acceptance-test` は [kompiro/hane](https://github.com/kompiro/hane) のスキル。
