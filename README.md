@@ -33,6 +33,23 @@ SHA256, and installs it to `~/.local/bin/tpl`. Override with `TPL_VERSION`
 `RUN` step in your `Dockerfile` — alongside the
 [adr-tools](https://github.com/kompiro/adr-tools) installer if you use both.
 
+### Claude Code plugin
+
+This repo is also a [Claude Code](https://claude.com/claude-code) plugin. Its
+`test-perspective` skill (`/tpl-tools:test-perspective`) writes, updates and
+deprecates TPLs by the rules `tpl` checks: it reads your config (`idFormat`,
+`checklistHeading`, `indexFile` / `indexCheck`, ...) and runs `tpl validate`
+after each change. The plugin is listed in the `kompiro-hane` marketplace:
+
+```
+/plugin marketplace add kompiro/hane
+/plugin install tpl-tools@kompiro-hane
+```
+
+The skill does not assume a CLI version: it follows the keys your config has, and
+names the release that introduced a feature where it relies on one. The npm
+package and the binaries do not include it.
+
 ## CLI
 
 ```
@@ -394,8 +411,9 @@ gh issue create --title "TPL deprecation review — $label" --body-file body.md
 
 This repo ships starter templates you can copy into your project:
 
-- [`docs/test-perspectives/TEMPLATE.md`](./docs/test-perspectives/TEMPLATE.md) —
-  frontmatter + body skeleton for a new TPL
+- [`skills/test-perspective/TEMPLATE.md`](./skills/test-perspective/TEMPLATE.md) —
+  frontmatter + body skeleton for a new TPL (the same template the
+  `test-perspective` skill uses)
 - [`docs/test-perspectives/README.md`](./docs/test-perspectives/README.md) —
   index, ADR との違い、proactive / retrospective、3-Yes ルール、ライフサイクル、運用ノート
 

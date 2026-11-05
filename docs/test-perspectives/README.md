@@ -1,7 +1,7 @@
 # テスト観点ライブラリ（Test Perspective Library, TPL）
 
 > Reference template shipped with `@kompiro/tpl-tools`. Copy this file (and
-> [`TEMPLATE.md`](./TEMPLATE.md)) into your project's
+> [`TEMPLATE.md`](../../skills/test-perspective/TEMPLATE.md)) into your project's
 > `docs/test-perspectives/` directory and adapt the topic vocabulary,
 > file paths, and tooling commands to your setup.
 
@@ -38,7 +38,7 @@ TPL は **2 つの起源** から生まれる:
 
 Pick one format per project; mixing is not supported.
 
-書式は [`TEMPLATE.md`](./TEMPLATE.md) を参照。
+書式は [`TEMPLATE.md`](../../skills/test-perspective/TEMPLATE.md)（`test-perspective` スキルの雛形）を参照。
 
 ### Frontmatter
 

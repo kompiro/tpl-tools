@@ -33,6 +33,11 @@ pnpm run build
   [Conventional Commits](https://www.conventionalcommits.org/) (e.g.
   `feat(validate): enforce topic consistency`).
 - Keep PRs focused — one logical change per PR.
+- A change to how a TPL must be written (frontmatter, id, index, checklist
+  markers, a config key, a subcommand) updates
+  [`skills/test-perspective/`](./skills/test-perspective/) in the same PR.
+  `test/skill-drift.test.ts` fails when a config key, subcommand or default is
+  missing from the skill.
 - Open an issue first for larger changes so the approach can be discussed.
 
 All PRs run CI (typecheck, lint, format, tests, build, and a CLI smoke
@@ -44,7 +49,9 @@ Releases publish to the public npm registry, triggered by a `v*` tag. Auth uses
 **npm Trusted Publishing via GitHub OIDC** — there is no stored `NPM_TOKEN`.
 
 1. Bump `version` in `package.json` per [SemVer](https://semver.org/).
-   While the package is pre-1.0, breaking changes bump the minor.
+   While the package is pre-1.0, breaking changes bump the minor. Bump
+   `version` in `.claude-plugin/plugin.json` to the same value (a test checks
+   that they match).
 2. Commit (`chore: release vX.Y.Z`) and merge to `main`.
 3. Tag the merge commit and push the tag:
    ```sh
