@@ -39,7 +39,9 @@ This repo is also a [Claude Code](https://claude.com/claude-code) plugin. Its
 `test-perspective` skill (`/tpl-tools:test-perspective`) writes, updates and
 deprecates TPLs by the rules `tpl` checks: it reads your config (`idFormat`,
 `checklistHeading`, `indexFile` / `indexCheck`, ...) and runs `tpl validate`
-after each change. The plugin is listed in the `kompiro-hane` marketplace:
+after each change. The plugin is to be listed in the `kompiro-hane` marketplace;
+the commands below work once that entry is published
+([kompiro/hane#101](https://github.com/kompiro/hane/issues/101)):
 
 ```
 /plugin marketplace add kompiro/hane

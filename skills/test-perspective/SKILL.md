@@ -32,7 +32,7 @@ TPL を書く前に、ホスト repo が `tpl` をどう使っているかを確
 1. ホスト repo が CI やパッケージの script で `tpl` を包んでいれば、その呼び方（例: `pnpm tpl:validate`）。フラグや `--config` はホスト repo が決めているので、自分で組み立てない
 2. `@kompiro/tpl-tools` が devDependency にあれば `pnpm exec tpl` / `npx tpl`
 3. `PATH` 上の `tpl`（standalone バイナリ）
-4. どれも無ければ CLI なしで進める。検証は手で frontmatter を確認し、関連 TPL は `docs/test-perspectives/` 配下の frontmatter（`topic` / `scope.packages` / `applicable_to` / `known_consumers`）を grep する
+4. どれも無ければ CLI なしで進める。検証は手で frontmatter を確認する。関連 TPL は `docs/test-perspectives/` 配下の frontmatter（`topic` / `scope.packages` / `applicable_to` / `known_consumers`）に加えて、本文（frontmatter とフェンス内を除く）が名指すパスも grep する。CLI も本文のパスで変更ファイルから TPL を引く
 
 ### config
 
@@ -135,11 +135,11 @@ config に `checklistHeading` があれば、`tpl validate` はその見出し�
 
 #### 2-5. 索引
 
-ホスト repo の TPL の一覧は、手で保守する表か、`tpl regenerate` が書く生成ファイルかのどちらか。config と索引のヘッダで判定する:
+ホスト repo の TPL の一覧は、`tpl regenerate` が書く生成ファイルか、手で保守する表かのどちらか。config の `indexFile` で判定する（索引がまだ一度も生成されていなくても、`indexFile` があれば生成ファイルの側）:
 
-- **生成された索引**（config に `indexFile` があり、そのファイルのヘッダに「`tpl regenerate` で生成。手で編集しない」旨がある）:
+- **生成された索引**（config に `indexFile` がある。生成済みならそのファイルのヘッダに「`tpl regenerate` で生成。手で編集しない」旨がある）:
   - config の `indexCheck` が `false` なら、ホスト repo は索引を PR の外（定期の再生成 PR 等）で更新している。**PR では索引を編集も再生成もせず、TPL のファイルだけを変える。** 手元で `tpl regenerate` を実行して索引に差分が出たら、その差分は PR に含めない
-  - `indexCheck` が無いか `true` なら、TPL と一緒に `tpl regenerate` で索引を書き直して同じ PR に含める（`tpl validate` が索引の行の欠けを検査する）。手で編集はしない
+  - `indexCheck` が無いか `true` なら、TPL と一緒に `tpl regenerate` で索引を書き直し（まだ無ければ作られる）、同じ PR に含める（`tpl validate` が索引の行の欠けを検査する）。手で編集はしない
   - どちらの場合も、索引がいつ・どう更新されるかはホスト repo の `docs/test-perspectives/README.md` の記述を優先する
 - **手で保守する一覧表**（`indexFile` が無く、`docs/test-perspectives/README.md` 等に表がある）: そこに行を追加する。`indexCheck` が `false` でなければ `tpl validate` が表との整合を検査する
 

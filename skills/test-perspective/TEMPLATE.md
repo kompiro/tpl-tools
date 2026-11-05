@@ -3,7 +3,7 @@ TPL（Test Perspective Library）記録の雛形。test-perspective スキルが
 コピーして使う雛形も兼ねる。
 
 使い方:
-1. このファイルを `docs/test-perspectives/TPL-<id>-<slug>.md` にコピーする（`<id>` は下の `idFormat` に従う）。
+1. このファイルを `docs/test-perspectives/` に、`idFormat` の形のファイル名（下記。`TPL-YYYYMMDD-NN-<slug>.md` か `TPL-<n>-<slug>.md`）でコピーする。
 2. コピー先で本 HTML コメントブロック（先頭）を削除し、frontmatter と各節を埋める。
 3. `discovered_from` の `issue:` は起源を問わず残し、proactive なら `root_cause_*` の該当行も残す。
 
@@ -11,7 +11,7 @@ TPL（Test Perspective Library）記録の雛形。test-perspective スキルが
 - id とファイル名の形式は config の `idFormat` で決まる（`tpl validate` が一致を検査する）:
   - `date-sequence`（config が無いときの既定）: id `TPL-YYYYMMDD-NN`、ファイル名 `TPL-YYYYMMDD-NN-<slug>.md`。`NN` はゼロ埋めで日ごとに `01` から
   - `issue-number`: id `TPL-<n>`、ファイル名 `TPL-<n>-<slug>.md`（ゼロ埋めなし）。`<n>` は Issue → PR → ローカル採番の順
-  採番後はリネームしない。下の雛形の `TPL-<id>` は、どちらかの形に置き換える。
+  採番後はリネームしない。下の雛形の `TPL-<id>` は、id 全体（`TPL-YYYYMMDD-NN` か `TPL-<n>`）で置き換える。
 - 言語: 日本語本文 + 英語の識別子・固有名詞。
 - `topic` は必須。config の `topics` があればそのどれか。無ければ free-form の小文字 kebab。
 - `applicable_to` と `discovered_from` は必須で空にしない。`discovered_from` に書けるキーは
