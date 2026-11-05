@@ -101,7 +101,7 @@ TPL は 2 つの起源から生まれる。frontmatter の `discovered_from` で
 2. 構造的なパターンとして **再発する可能性がある** か?
 3. 既存の TPL でカバーされていない観点か?（既存 TPL のパターンに該当するなら「既存更新」へ）
 
-3 の確認には `tpl related <topic>` を使う。変更したファイルが決まっていれば `tpl related --changed-files <path>...`（v0.0.14 以降）も使う。
+3 の確認には `tpl related <topic>` を使う。変更したファイルが決まっていれば `tpl related --changed-files --limit 0 <path>...`（v0.0.14 以降。既定では 10 件までしか出さないので `--limit 0` で全件）も使う。
 
 #### 2-3. ファイルを作成する
 
@@ -139,7 +139,7 @@ config に `checklistHeading` があれば、`tpl validate` はその見出し�
 ホスト repo の TPL の一覧は、`tpl regenerate` が書く生成ファイルか、手で保守する表かのどちらか。config の `indexFile` で判定する（索引がまだ一度も生成されていなくても、`indexFile` があれば生成ファイルの側）:
 
 - **生成された索引**（config に `indexFile` がある。生成済みならそのファイルのヘッダに「`tpl regenerate` で生成。手で編集しない」旨がある）:
-  - config の `indexCheck` が `false` なら、ホスト repo は索引を PR の外（定期の再生成 PR 等）で更新している。**PR では索引を編集も再生成もせず、TPL のファイルだけを変える。** 手元で `tpl regenerate` を実行して索引に差分が出たら、その差分は PR に含めない
+  - config の `indexCheck` が `false` なら（CLI が v0.0.12 以前だと効かない。上記「古い CLI」）、ホスト repo は索引を PR の外（定期の再生成 PR 等）で更新している。**PR では索引を編集も再生成もせず、TPL のファイルだけを変える。** 手元で `tpl regenerate` を実行して索引に差分が出たら、その差分は PR に含めない
   - `indexCheck` が無いか `true` なら、TPL と一緒に `tpl regenerate` で索引を書き直し（まだ無ければ作られる）、同じ PR に含める（`tpl validate` が索引の行の欠けを検査する）。手で編集はしない
   - どちらの場合も、索引がいつ・どう更新されるかはホスト repo の `docs/test-perspectives/README.md` の記述を優先する
 - **手で保守する一覧表**（`indexFile` が無く、`docs/test-perspectives/README.md` 等に表がある）: そこに行を追加する。`indexCheck` が `false` でなければ `tpl validate` が表との整合を検査する
@@ -210,7 +210,7 @@ retrospective TPL   ← bug 修正と同じ PR で書く（不可避な学習）
 
 - **DesignDoc 作成時**（`design-doc` スキル）: 該当 `topic` / `scope.packages` の既存 TPL を一覧し（`tpl related <topic>`）、さらに同じ topic の `concepts*` / 関連 ADR を読んで、まだ TPL になっていない原則で今回の設計が違反しうるものがないか確認する。あれば 3-Yes ルールに照らして proactive TPL を **同じ PR で** 起こす（このスキルを呼ぶ）
 - **新機能の実装時 / 受け入れテスト作成時**（`acceptance-test` スキル）: AC を書く前に該当 TPL のチェックリストを確認し、引用した proactive TPL のチェックリスト項目を AC に転記する
-- **PR を開く前**: 変更したファイルから関連 TPL を引き（`tpl related --base <ref>`、v0.0.14 以降）、チェックリストを確認する。`--base` は `<ref>` と `HEAD` を比べるので、コミットしていない変更は入らない。先にコミットするか、そのパスを `--changed-files` で渡す
+- **PR を開く前**: 変更したファイルから関連 TPL を引き（`tpl related --base <ref> --limit 0`、v0.0.14 以降。既定では 10 件までなので `--limit 0` で全件）、チェックリストを確認する。`--base` は `<ref>` と `HEAD` を比べるので、コミットしていない変更は入らない。先にコミットするか、そのパスを `--changed-files` で渡す
 - **bug 修正時**: 同じパターンの TPL がすでに存在しないか確認し、あれば `discovered_from` に追記する。なければ 3-Yes ルールで retrospective TPL の新規作成を検討する。併せて「この bug は proactive TPL を書いていれば防げたか?」も自問する
 
 `design-doc` / `acceptance-test` は [kompiro/hane](https://github.com/kompiro/hane) のスキル。
