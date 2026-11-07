@@ -59,14 +59,16 @@ marketplace of its own.
   `skills/` and `.claude-plugin/`, so CLI users receive nothing new.
 - **The skill does not assume a CLI version.** The plugin updates from the marketplace
   while a host pins its CLI, so the two can differ. The skill reads the host's config and
-  index, prefers the host's own `tpl` script, and gives a fallback for each feature an
-  older CLI lacks.
+  index, prefers the host's own `tpl` script, and says what to do when an older CLI lacks
+  a feature. Most features have a fallback. `indexCheck: false` on v0.0.12 or earlier
+  does not, so there the skill suggests upgrading.
 - **The drift test checks names and defaults only.** `test/skill-drift.test.ts` fails
   when the skill omits a config key from `src/config.schema.json`, omits a subcommand from
-  the CLI dispatcher, leaves out a schema default, or names a `--flag` the CLI does not
-  define. It also holds `.claude-plugin/plugin.json`'s version equal to `package.json`'s.
-  A change in what a rule means passes the test, so `CONTRIBUTING.md` requires the skill
-  update and review catches the rest.
+  the CLI dispatcher, leaves out a schema default, or names a `--flag` that appears nowhere
+  in the CLI source. That check matches a substring, so `--source` passes because of
+  `--source-prefix`. It also holds `.claude-plugin/plugin.json`'s version equal to
+  `package.json`'s. A change in what a rule means passes the test, so `CONTRIBUTING.md`
+  requires the skill update and review catches the rest.
 - **One template, at the skill.** `docs/test-perspectives/TEMPLATE.md` is gone. The
   reference README uses absolute links to the skill's template, because hosts copy that
   README and relative links would break there.
