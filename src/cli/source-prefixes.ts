@@ -16,11 +16,11 @@ export function resolveSourcePrefixes(
   const fromFlags = parsed.optionsAll.get("source-prefix");
   if (fromFlags === undefined) return { prefixes: refData?.sourcePrefixes ?? [] };
   for (const prefix of fromFlags) {
-    // `--source-prefix=` parses as an empty value, which no first path segment
+    // `--source-prefix=` parses as an empty value, which no path segment
     // can equal, so the check the caller asked for would run over nothing. A
     // usage error says so rather than reporting a clean corpus.
     if (prefix === "") {
-      return { error: "--source-prefix takes a directory name, not an empty value" };
+      return { error: "--source-prefix takes a repo-relative directory, not an empty value" };
     }
     const error = sourcePrefixError(prefix);
     if (error !== undefined) {

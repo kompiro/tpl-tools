@@ -461,9 +461,10 @@ interface ValidateOptions {
    */
   indexPath?: string;
   /**
-   * Top-level directories that hold source. A code span in a TPL body is
-   * checked against the working tree only when its first path segment is one
-   * of these. Empty or omitted skips the body-path check entirely, the way
+   * Repo-relative directories that hold source. A code span in a TPL body and a
+   * frontmatter `root_cause_file` are checked against the working tree only when
+   * their leading path segments are one of these. Empty or omitted skips both
+   * checks, the way
    * `validPackages: null` skips the scope.packages check.
    */
   sourcePrefixes?: readonly string[];
@@ -559,7 +560,10 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
 
     for (const cf of checklist) findings.push({ ...cf, file: full });
 
-    const discoveredFrom = result.parsed?.fm.discovered_from;
+    // A deprecated TPL may have been deprecated because its file is gone, and its
+    // citation stays as the record of why.
+    const discoveredFrom =
+      result.parsed?.fm.status === "deprecated" ? undefined : result.parsed?.fm.discovered_from;
     for (const entry of Array.isArray(discoveredFrom) ? discoveredFrom : []) {
       const citation: unknown = entry?.root_cause_file;
       if (typeof citation !== "string") continue;

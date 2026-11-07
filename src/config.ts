@@ -65,9 +65,10 @@ export interface ReferenceData {
    */
   checklistHeading?: string;
   /**
-   * Top-level directories that hold source (e.g. `packages`, `scripts`). A
-   * code span in a TPL body counts as a source path only when its first
-   * segment is one of these: `tpl validate` checks those paths exist, and
+   * Repo-relative directories that hold source (e.g. `packages`, `docs/design`).
+   * A code span in a TPL body and a frontmatter `root_cause_file` count as source
+   * paths only when their leading segments are one of these: `tpl validate`
+   * checks those paths exist, and
    * `tpl related --changed-files` / `--base` match changed files against them.
    * `--source-prefix` on the command line replaces this list. Unset means no
    * prefix, so both read nothing from the body.
@@ -88,8 +89,8 @@ export const DEFAULT_TEST_FILE_INFIXES: readonly string[] = [".test", ".spec"];
 
 /**
  * Why `prefix` cannot be a source prefix, or `undefined` when it can. A prefix
- * is compared with a path's first segment, so anything that cannot be one
- * segment would make the check run over nothing.
+ * is compared with a path's leading segments, so anything that cannot be a run of
+ * clean segments would make the check run over nothing.
  */
 export function sourcePrefixError(prefix: string): string | undefined {
   if (prefix === "") return "is empty";

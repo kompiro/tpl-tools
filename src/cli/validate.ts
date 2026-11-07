@@ -36,8 +36,9 @@ Options:
                            values for scope.packages. Omit to skip the
                            scope.packages check.
   --source-prefix <dir>    Repo-relative directory holding source. A code span in a
-                           TPL body is checked against the working tree when
-                           its first path segment is one of these. Repeat the
+                           TPL body and a frontmatter root_cause_file are checked
+                           against the working tree when their leading path
+                           segments are one of these. Repeat the
                            flag for several (--source-prefix packages
                            --source-prefix scripts). Replaces the config's
                            "sourcePrefixes". Paths resolve relative to the

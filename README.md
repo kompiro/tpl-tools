@@ -130,7 +130,13 @@ is checked too. A citation outside every prefix is not read.
 | `packages/core/src/a.ts:42`, `:42-50`, `#L42` | always |
 
 A line number is always a finding, because nothing can check that the line still
-means what it meant. Cite a symbol or an anchor instead.
+means what it meant. Cite a symbol or an anchor instead. A symbol is matched
+verbatim, so cite the name as the file spells it (`KrsEdge`, not `KrsEdge.to`). An
+anchor is matched against the file's `#` headings. A `deprecated` TPL's citations
+are not read, since its file being gone may be why it was deprecated.
+
+**Upgrading:** with `sourcePrefixes` set, existing `path:N` citations become
+findings, and there is no separate switch. Convert them when you upgrade.
 
 #### Source paths named in a TPL body
 

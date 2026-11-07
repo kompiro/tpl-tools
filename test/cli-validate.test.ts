@@ -128,6 +128,43 @@ describe("validate CLI --source-prefix", () => {
     expect(run(["--source-prefix", "packages/core"])).toBe(0);
   });
 
+  describe("root_cause_file", () => {
+    const writeCitation = (citation: string, status = "active") =>
+      writeFileSync(
+        join(root, "docs/test-perspectives/TPL-20260907-01-perspective.md"),
+        TPL("- nothing here")
+          .replace(/^status: \w+$/m, `status: ${status}`)
+          .replace(
+            /^discovered_from:\n/m,
+            `discovered_from:\n  - root_cause_file: "${citation}"\n`,
+          ),
+      );
+
+    it.each([
+      ["packages/core/src/gone.ts", "is not in the working tree"],
+      ["packages/core/src/style/resolver.ts:12", "cites a line number"],
+      ["packages/core/src/style/resolver.ts:gone", 'no longer contains "gone"'],
+      ["packages/core/src/style/resolver.ts#gone", "has no heading for #gone"],
+    ])("reports %s", (citation, message) => {
+      mkdirSync(join(root, "packages/core/src/style"), { recursive: true });
+      writeFileSync(join(root, "packages/core/src/style/resolver.ts"), "export {};\n");
+      writeCitation(citation);
+      expect(run(["--source-prefix", "packages"])).toBe(1);
+      expect(err).toContain(message);
+    });
+
+    it("is not read without a prefix", () => {
+      writeCitation("packages/core/src/gone.ts");
+      expect(run([])).toBe(0);
+    });
+
+    it("is not read on a deprecated TPL, whose file may be why it is deprecated", () => {
+      writeCitation("packages/core/src/gone.ts", "deprecated");
+      run(["--source-prefix", "packages"]);
+      expect(err).not.toContain("is not in the working tree");
+    });
+  });
+
   it("reads the prefixes from the config when the flag is absent", () => {
     writeFileSync(join(root, "tpl.config.json"), JSON.stringify({ sourcePrefixes: ["packages"] }));
     writeTpl("- `packages/core/src/gone.ts` covers it");
