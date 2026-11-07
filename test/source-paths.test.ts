@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   ABSENT_PATH_MARKER,
   candidatePath,
+  checkRootCauseFile,
   checkSourcePaths,
   namedSourcePaths,
   sourcePathsInLine,
@@ -331,5 +332,96 @@ describe("namedSourcePaths", () => {
 
   it("returns nothing without a prefix", () => {
     expect(namedSourcePaths("`packages/a.ts`", new Set())).toEqual([]);
+  });
+});
+
+describe("candidatePath with a nested prefix", () => {
+  const nested = new Set(["docs/design"]);
+
+  it.each(["docs/design/a.md", "docs/design/sub/a.md"])("covers %s", (span) => {
+    expect(candidatePath(span, nested)).toBe(span);
+  });
+
+  it.each(["docs/design", "docs/design/", "docs/designs/a.md", "docs/a.md", "docs/adr/a.md"])(
+    "does not cover %s",
+    (span) => {
+      expect(candidatePath(span, nested)).toBeUndefined();
+    },
+  );
+});
+
+describe("checkRootCauseFile", () => {
+  let tree: string;
+  const prefixes = new Set(["src", "docs/design"]);
+  const check = (citation: string) => checkRootCauseFile(citation, prefixes, tree);
+
+  beforeAll(() => {
+    tree = mkdtempSync(join(tmpdir(), "tpl-root-cause-"));
+    mkdirSync(join(tree, "src/dir"), { recursive: true });
+    mkdirSync(join(tree, "docs/design"), { recursive: true });
+    writeFileSync(join(tree, "src/a.ts"), "export function parseToken() {}\n");
+    writeFileSync(
+      join(tree, "docs/design/a.md"),
+      "# Title\n\n## The Section: one\n\n### \u65e5\u672c\u8a9e\u306e\u7bc0 ##\n",
+    );
+  });
+
+  afterAll(() => {
+    rmSync(tree, { recursive: true, force: true });
+  });
+
+  it.each([
+    "src/a.ts",
+    "src/dir",
+    "src/a.ts:parseToken",
+    "src/a.ts :: parseToken",
+    "docs/design/a.md#the-section-one",
+    "docs/design/a.md#\u65e5\u672c\u8a9e\u306e\u7bc0",
+    "  src/a.ts  ",
+  ])("accepts %s", (citation) => {
+    expect(check(citation)).toBeUndefined();
+  });
+
+  it.each([".devcontainer/x.json", ".devcontainer/x.json:9", "docs/adr/gone.md", "not a path"])(
+    "does not read %s, outside every prefix",
+    (citation) => {
+      expect(check(citation)).toBeUndefined();
+    },
+  );
+
+  it("reports a missing path, whatever the citation points at inside it", () => {
+    expect(check("src/gone.ts")).toEqual({ kind: "root-cause-file-missing", path: "src/gone.ts" });
+    expect(check("src/gone.ts:12")).toEqual({
+      kind: "root-cause-file-missing",
+      path: "src/gone.ts",
+    });
+  });
+
+  it.each(["src/a.ts:12", "src/a.ts:12-20", "src/a.ts#L12", "src/a.ts#L12-L20"])(
+    "reports the line number in %s",
+    (citation) => {
+      expect(check(citation)).toEqual({ kind: "root-cause-file-line-number", citation });
+    },
+  );
+
+  it("reports a symbol the file no longer holds", () => {
+    expect(check("src/a.ts:readToken")).toEqual({
+      kind: "root-cause-file-symbol-missing",
+      path: "src/a.ts",
+      symbol: "readToken",
+    });
+    expect(check("src/dir:anything")).toEqual({
+      kind: "root-cause-file-symbol-missing",
+      path: "src/dir",
+      symbol: "anything",
+    });
+  });
+
+  it("reports an anchor no heading gets", () => {
+    expect(check("docs/design/a.md#gone")).toEqual({
+      kind: "root-cause-file-anchor-missing",
+      path: "docs/design/a.md",
+      anchor: "gone",
+    });
   });
 });

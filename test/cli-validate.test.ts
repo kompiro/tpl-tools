@@ -117,10 +117,15 @@ describe("validate CLI --source-prefix", () => {
     expect(out).toContain("Validated 1 TPL(s).");
   });
 
-  it("rejects a prefix that is a path rather than a directory name", () => {
+  it("rejects a prefix that is not a clean repo-relative directory", () => {
     writeTpl("- nothing here");
-    expect(run(["--source-prefix", "packages/core"])).toBe(2);
-    expect(err).toContain("takes one top-level directory name");
+    expect(run(["--source-prefix", "packages//core"])).toBe(2);
+    expect(err).toContain("takes one repo-relative directory");
+  });
+
+  it("accepts a nested prefix", () => {
+    writeTpl("- nothing here");
+    expect(run(["--source-prefix", "packages/core"])).toBe(0);
   });
 
   it("reads the prefixes from the config when the flag is absent", () => {

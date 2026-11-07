@@ -35,7 +35,7 @@ Options:
   --packages-root <path>   Directory whose subdirectories are the allowed
                            values for scope.packages. Omit to skip the
                            scope.packages check.
-  --source-prefix <dir>    Top-level directory holding source. A code span in a
+  --source-prefix <dir>    Repo-relative directory holding source. A code span in a
                            TPL body is checked against the working tree when
                            its first path segment is one of these. Repeat the
                            flag for several (--source-prefix packages

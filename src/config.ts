@@ -93,8 +93,10 @@ export const DEFAULT_TEST_FILE_INFIXES: readonly string[] = [".test", ".spec"];
  */
 export function sourcePrefixError(prefix: string): string | undefined {
   if (prefix === "") return "is empty";
-  if (prefix.includes("/") || prefix.includes("\\")) return "is a path, not one directory name";
-  if (prefix === "." || prefix === "..") return 'is "." or ".."';
+  if (prefix.includes("\\")) return "uses a backslash; write `/`";
+  const segments = prefix.split("/");
+  if (segments.includes("")) return "has an empty segment (a leading, trailing or doubled `/`)";
+  if (segments.includes(".") || segments.includes("..")) return 'has a "." or ".." segment';
   return undefined;
 }
 
@@ -242,7 +244,7 @@ export function loadReferenceData(path?: string): ReferenceData {
       const error = sourcePrefixError(prefix);
       if (error !== undefined) {
         throw new ReferenceDataInvalidError(
-          `${path}: "sourcePrefixes" holds top-level directory names, but ${JSON.stringify(prefix)} ${error}`,
+          `${path}: "sourcePrefixes" holds repo-relative directories, but ${JSON.stringify(prefix)} ${error}`,
         );
       }
     }

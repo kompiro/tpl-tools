@@ -8,7 +8,7 @@
 // The check is opt-in: with no source prefixes configured nothing here runs,
 // because the prefixes are what make the scan safe (see `candidatePath`).
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
@@ -104,9 +104,21 @@ export function candidatePath(span: string, prefixes: ReadonlySet<string>): stri
   // `.` and `..` pass SEGMENT_RE. Rejecting them keeps every candidate a
   // straightforward repo-relative path, so resolution cannot escape the root.
   if (segments.some((s) => s === "." || s === "..")) return undefined;
-  if (!prefixes.has(segments[0])) return undefined;
+  if (!underPrefix(segments, prefixes)) return undefined;
   if (segments.some((s) => GENERATED_SEGMENTS.has(s))) return undefined;
   return trimmed;
+}
+
+/**
+ * Whether a prefix names the leading segments of a path, with at least one
+ * segment left below it. By segment, so `docs/design` covers `docs/design/x.md`
+ * and neither `docs/designs/x.md` nor `docs/x.md`.
+ */
+function underPrefix(segments: readonly string[], prefixes: ReadonlySet<string>): boolean {
+  for (let end = 1; end < segments.length; end++) {
+    if (prefixes.has(segments.slice(0, end).join("/"))) return true;
+  }
+  return false;
 }
 
 export interface CodeSpan {
@@ -441,4 +453,92 @@ export function checkSourcePaths(
   reportUnusedMarker();
 
   return findings;
+}
+
+export type RootCauseFinding =
+  /** The cited path is not in the working tree. */
+  | { kind: "root-cause-file-missing"; path: string }
+  /** A line number: nothing can check that the line still means what it meant. */
+  | { kind: "root-cause-file-line-number"; citation: string }
+  /** The cited symbol no longer appears in the file. */
+  | { kind: "root-cause-file-symbol-missing"; path: string; symbol: string }
+  /** The cited anchor is not a heading of the file. */
+  | { kind: "root-cause-file-anchor-missing"; path: string; anchor: string };
+
+interface RootCauseCitation {
+  path: string;
+  /** What the citation points at inside the file, if anything. */
+  target?:
+    | { kind: "line" }
+    | { kind: "symbol"; symbol: string }
+    | { kind: "anchor"; anchor: string };
+}
+
+/**
+ * Splits `path`, `path:N`, `path:N-M`, `path:symbol`, `path :: symbol`,
+ * `path#anchor` and `path#L12`. A separator cannot be part of the path, because
+ * {@link candidatePath} rejects it.
+ */
+function parseRootCauseCitation(citation: string): RootCauseCitation {
+  const spaced = /^(.+?)\s*::\s*(.+)$/.exec(citation);
+  if (spaced) return { path: spaced[1], target: { kind: "symbol", symbol: spaced[2] } };
+  const hash = citation.indexOf("#");
+  if (hash !== -1) {
+    const path = citation.slice(0, hash);
+    const anchor = citation.slice(hash + 1);
+    return /^L\d+(?:-L?\d+)?$/.test(anchor)
+      ? { path, target: { kind: "line" } }
+      : { path, target: { kind: "anchor", anchor } };
+  }
+  const colon = citation.indexOf(":");
+  if (colon === -1) return { path: citation };
+  const path = citation.slice(0, colon);
+  const after = citation.slice(colon + 1);
+  return /^\d+(?:-\d+)?$/.test(after)
+    ? { path, target: { kind: "line" } }
+    : { path, target: { kind: "symbol", symbol: after } };
+}
+
+/** The anchors a Markdown file's headings get, by GitHub's rule. */
+function headingAnchors(markdown: string): Set<string> {
+  const anchors = new Set<string>();
+  for (const line of markdown.split("\n")) {
+    const heading = /^ {0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line);
+    if (!heading) continue;
+    anchors.add(
+      heading[1]
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\p{M}\s_-]/gu, "")
+        .replace(/\s/g, "-"),
+    );
+  }
+  return anchors;
+}
+
+/**
+ * Checks one frontmatter `root_cause_file` against the working tree. A citation
+ * outside every prefix is not read, like a body path: the prefixes are what say
+ * which directories this repo keeps stable.
+ */
+export function checkRootCauseFile(
+  citation: string,
+  prefixes: ReadonlySet<string>,
+  repoRoot: string,
+): RootCauseFinding | undefined {
+  const { path: written, target } = parseRootCauseCitation(citation.trim());
+  const path = candidatePath(written.trim(), prefixes);
+  if (path === undefined) return undefined;
+  const full = resolve(repoRoot, path);
+  if (!existsSync(full)) return { kind: "root-cause-file-missing", path };
+  if (target === undefined) return undefined;
+  if (target.kind === "line") return { kind: "root-cause-file-line-number", citation };
+  const text = statSync(full).isFile() ? readFileSync(full, "utf8") : "";
+  if (target.kind === "symbol") {
+    return text.includes(target.symbol)
+      ? undefined
+      : { kind: "root-cause-file-symbol-missing", path, symbol: target.symbol };
+  }
+  return headingAnchors(text).has(target.anchor)
+    ? undefined
+    : { kind: "root-cause-file-anchor-missing", path, anchor: target.anchor };
 }

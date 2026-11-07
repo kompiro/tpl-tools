@@ -22,13 +22,10 @@ export function resolveSourcePrefixes(
     if (prefix === "") {
       return { error: "--source-prefix takes a directory name, not an empty value" };
     }
-    if (prefix.includes("/") || prefix.includes("\\")) {
-      return { error: `--source-prefix takes one top-level directory name, not a path: ${prefix}` };
-    }
     const error = sourcePrefixError(prefix);
     if (error !== undefined) {
       return {
-        error: `--source-prefix takes one top-level directory name, but ${prefix} ${error}`,
+        error: `--source-prefix takes one repo-relative directory, but ${prefix} ${error}`,
       };
     }
   }
