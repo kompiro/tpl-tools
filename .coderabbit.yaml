@@ -9,6 +9,10 @@
 inheritance: true
 
 reviews:
+  auto_review:
+    # The first review runs when a PR leaves draft. A later one is asked for with
+    # `@coderabbitai review`, so a push does not spend a review on its own.
+    auto_incremental_review: false
   auto_approvals:
     enabled: false
   # Legacy alias of auto_approvals.enabled. Set too so an inherited value under
