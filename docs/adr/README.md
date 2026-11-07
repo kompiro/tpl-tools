@@ -53,6 +53,7 @@ direction.
 - [ADR-31](./31-checklist-markers-enforcement-status.md) — Mark each checklist item as guarded or judgment, and derive a TPL's enforcement status from the marks (accepted)
 - [ADR-35](./35-index-check-off.md) — Let a config turn off tpl validate's index check, for an index written outside PRs (accepted)
 - [ADR-41](./41-changed-file-recall.md) — Recall TPLs from a change's files, keyed by the paths a TPL body names (accepted)
+- [ADR-39](./39-test-perspective-skill-plugin.md) — Ship the test-perspective skill from this repo as a Claude Code plugin (accepted)
 
 ### infrastructure
 
