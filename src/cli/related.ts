@@ -33,7 +33,7 @@ Options:
   --limit <n>          With --changed-files or --base, list at most <n>
                        (default ${DEFAULT_LIMIT}; 0 lists all)
   --source-prefix <dir>
-                       Top-level directory whose paths a TPL body is matched
+                       Repo-relative directory whose paths a TPL body is matched
                        by; repeat for several. Replaces the config's
                        "sourcePrefixes"
   --tpl-dir <path>     TPL directory (default: docs/test-perspectives)

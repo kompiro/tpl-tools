@@ -174,8 +174,8 @@ describe("related CLI", () => {
     [["--changed-files", "x", "--package", "core"], "--package filters a topic listing"],
     [["testing", "--limit", "3"], "--limit applies to --changed-files and --base"],
     [["--changed-files", "x", "--limit", "ten"], "--limit takes a whole number"],
-    [["--changed-files", "x", "--source-prefix", "a/b"], "not a path"],
-    [["--changed-files", "x", "--source-prefix", ".."], 'is "." or ".."'],
+    [["--changed-files", "x", "--source-prefix", "a//b"], "empty segment"],
+    [["--changed-files", "x", "--source-prefix", ".."], 'has a "." or ".." segment'],
     [["--base=--output=pwned"], "--base takes a git ref"],
   ])("rejects %j", (args, message) => {
     expect(run(args)).toBe(2);

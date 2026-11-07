@@ -107,7 +107,8 @@ tpl validate [--tpl-dir <path>] [--config <path>] [--packages-root <path>]
   validation and use the default id format.**
 - `--packages-root` — directory whose immediate subdirectories are the allowed
   values for `scope.packages`. Omit to skip that check (non-monorepo repos).
-- `--source-prefix` — top-level directory holding source; repeat for several.
+- `--source-prefix` — repo-relative directory holding source (`packages`, or a
+  nested one such as `docs/design`); repeat for several.
   Replaces the config's `sourcePrefixes`. With neither, the body source-path
   check is skipped. See below.
 
@@ -115,6 +116,27 @@ tpl validate [--tpl-dir <path>] [--config <path>] [--packages-root <path>]
 (see [`tpl related`](#tpl-related)).
 
 Exit code `0` = clean, `1` = findings, `2` = usage / I/O error.
+
+#### Root cause citations in the frontmatter
+
+With source prefixes set, each `discovered_from` `root_cause_file` under a prefix
+is checked too. A citation outside every prefix is not read.
+
+| citation | finding when |
+| --- | --- |
+| `packages/core/src/a.ts` | the path is not in the working tree |
+| `packages/core/src/a.ts:parseToken`, `packages/core/src/a.ts :: parseToken` | the text `parseToken` no longer appears in the file |
+| `docs/design/a.md#the-section` | no heading of the file gets that anchor |
+| `packages/core/src/a.ts:42`, `:42-50`, `#L42` | always |
+
+A line number is always a finding, because nothing can check that the line still
+means what it meant. Cite a symbol or an anchor instead. A symbol is matched
+verbatim, so cite the name as the file spells it (`KrsEdge`, not `KrsEdge.to`). An
+anchor is matched against the file's `#` headings. A `deprecated` TPL's citations
+are not read, since its file being gone may be why it was deprecated.
+
+**Upgrading:** with `sourcePrefixes` set, existing `path:N` citations become
+findings, and there is no separate switch. Convert them when you upgrade.
 
 #### Source paths named in a TPL body
 
@@ -130,8 +152,8 @@ command line (the flag replaces the config's list):
 tpl validate --source-prefix packages --source-prefix scripts
 ```
 
-An inline code span is checked when it is a path **end to end** and its first
-segment is one of the prefixes. That single rule keeps globs (`at-*.spec.ts`),
+An inline code span is checked when it is a path **end to end** and its leading
+segments are one of the prefixes. That single rule keeps globs (`at-*.spec.ts`),
 placeholders (`<spec path>`) and shell lines (`cp a b`) out with no deny-list of
 illustrative names. Matching is by segment, so `packages-old/foo` does not
 belong to the prefix `packages`. Paths resolve relative to the working

@@ -28,7 +28,7 @@ export function findRelated(parsed: readonly ParsedTpl[], filter: RelatedFilter)
 }
 
 interface ChangedFilesOptions {
-  /** Top-level source directories; a body path counts only under one of them. */
+  /** Repo-relative source directories; a body path counts only under one of them. */
   sourcePrefixes: readonly string[];
   /** Directory the body paths resolve against. Defaults to `process.cwd()`. */
   repoRoot?: string;

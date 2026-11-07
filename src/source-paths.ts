@@ -8,7 +8,7 @@
 // The check is opt-in: with no source prefixes configured nothing here runs,
 // because the prefixes are what make the scan safe (see `candidatePath`).
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
@@ -104,9 +104,21 @@ export function candidatePath(span: string, prefixes: ReadonlySet<string>): stri
   // `.` and `..` pass SEGMENT_RE. Rejecting them keeps every candidate a
   // straightforward repo-relative path, so resolution cannot escape the root.
   if (segments.some((s) => s === "." || s === "..")) return undefined;
-  if (!prefixes.has(segments[0])) return undefined;
+  if (!underPrefix(segments, prefixes)) return undefined;
   if (segments.some((s) => GENERATED_SEGMENTS.has(s))) return undefined;
   return trimmed;
+}
+
+/**
+ * Whether a prefix names the leading segments of a path, with at least one
+ * segment left below it. By segment, so `docs/design` covers `docs/design/x.md`
+ * and neither `docs/designs/x.md` nor `docs/x.md`.
+ */
+function underPrefix(segments: readonly string[], prefixes: ReadonlySet<string>): boolean {
+  for (let end = 1; end < segments.length; end++) {
+    if (prefixes.has(segments.slice(0, end).join("/"))) return true;
+  }
+  return false;
 }
 
 export interface CodeSpan {
@@ -441,4 +453,117 @@ export function checkSourcePaths(
   reportUnusedMarker();
 
   return findings;
+}
+
+export type RootCauseFinding =
+  /** The cited path is not in the working tree. */
+  | { kind: "root-cause-file-missing"; path: string }
+  /** A line number: nothing can check that the line still means what it meant. */
+  | { kind: "root-cause-file-line-number"; citation: string }
+  /** The cited symbol no longer appears in the file. */
+  | { kind: "root-cause-file-symbol-missing"; path: string; symbol: string }
+  /** The cited anchor is not a heading of the file. */
+  | { kind: "root-cause-file-anchor-missing"; path: string; anchor: string };
+
+interface RootCauseCitation {
+  path: string;
+  /** What the citation points at inside the file, if anything. */
+  target?:
+    | { kind: "line" }
+    | { kind: "symbol"; symbol: string }
+    | { kind: "anchor"; anchor: string };
+}
+
+/** `42`, `42-50`, `12:5`, `L12` after a `:`. */
+const LINE_AFTER_COLON = /^L?\d+(?:[-:]L?\d+)*$/;
+/** `L12`, `L12-L20`, `L3C1-L4C2` after a `#`, the forms GitHub links use. */
+const LINE_AFTER_HASH = /^L\d+(?:C\d+)?(?:-L?\d+(?:C\d+)?)?$/;
+
+/**
+ * Splits a citation at its first separator, so a symbol may hold `::` or `#`
+ * (`a.cpp:Foo::bar`, `a.ts:Foo#priv`). What follows `#` decides between a line
+ * and an anchor, and an anchor holding `/` means the `#` was part of a path that
+ * {@link candidatePath} does not read, so the whole value is returned as the path.
+ */
+function parseRootCauseCitation(citation: string): RootCauseCitation {
+  const split = /^([^\s:#]+)\s*(::|:|#)\s*(.*)$/.exec(citation);
+  if (!split) return { path: citation };
+  const [, path, separator, after] = split as unknown as [string, string, string, string];
+  if (separator === "#") {
+    if (after.includes("/")) return { path: citation };
+    return LINE_AFTER_HASH.test(after)
+      ? { path, target: { kind: "line" } }
+      : { path, target: { kind: "anchor", anchor: after } };
+  }
+  return LINE_AFTER_COLON.test(after)
+    ? { path, target: { kind: "line" } }
+    : { path, target: { kind: "symbol", symbol: after } };
+}
+
+function decoded(anchor: string): string {
+  try {
+    return decodeURIComponent(anchor);
+  } catch {
+    return anchor;
+  }
+}
+
+/**
+ * The anchors of a Markdown file's `#` headings, following GitHub's rule for
+ * punctuation, repeats (`-1`), link text and emphasis. A setext heading gets none,
+ * so cite a `#` heading.
+ */
+function headingAnchors(markdown: string): Set<string> {
+  const anchors = new Set<string>();
+  const seen = new Map<string, number>();
+  let fence: string | undefined;
+  for (const line of markdown.split("\n")) {
+    const marker = FENCE_RE.exec(line)?.[1];
+    if (marker !== undefined) {
+      if (fence === undefined) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length) fence = undefined;
+      continue;
+    }
+    if (fence !== undefined) continue;
+    const heading = /^ {0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line);
+    if (!heading?.[1]) continue;
+    const slug = heading[1]
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/(^|\s)_+|_+(?=\s|$)/g, "$1")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\p{M}\s_-]/gu, "")
+      .replace(/\s/g, "-");
+    const count = seen.get(slug) ?? 0;
+    seen.set(slug, count + 1);
+    anchors.add(count === 0 ? slug : `${slug}-${count}`);
+  }
+  return anchors;
+}
+
+/**
+ * Checks one frontmatter `root_cause_file` against the working tree. A citation
+ * outside every prefix is not read, like a body path: the prefixes are what say
+ * which directories this repo keeps stable.
+ */
+export function checkRootCauseFile(
+  citation: string,
+  prefixes: ReadonlySet<string>,
+  repoRoot: string,
+): RootCauseFinding | undefined {
+  const { path: written, target } = parseRootCauseCitation(citation.trim());
+  const path = candidatePath(written.trim(), prefixes);
+  if (path === undefined) return undefined;
+  const full = resolve(repoRoot, path);
+  if (!existsSync(full)) return { kind: "root-cause-file-missing", path };
+  if (target === undefined) return undefined;
+  if (target.kind === "line") return { kind: "root-cause-file-line-number", citation };
+  const text = statSync(full).isFile() ? readFileSync(full, "utf8") : "";
+  if (target.kind === "symbol") {
+    return target.symbol !== "" && text.includes(target.symbol)
+      ? undefined
+      : { kind: "root-cause-file-symbol-missing", path, symbol: target.symbol };
+  }
+  return headingAnchors(text).has(decoded(target.anchor))
+    ? undefined
+    : { kind: "root-cause-file-anchor-missing", path, anchor: target.anchor };
 }
