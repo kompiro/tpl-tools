@@ -38,7 +38,7 @@ discovered_from:
   - issue: "#N"                              # TPL を起こした作業の Issue。proactive でも書き、番号も通常ここから採る（作業に Issue が無いときだけ省く）
   # - root_cause_adr: "ADR-<番号>"            # proactive（ADR 起源）の場合に追加
   # - root_cause_file: "docs/concepts.*"     # proactive（原則ファイル起源）の場合に追加
-  # - root_cause_file: "path/to/file.ts:LINE"
+  # - root_cause_file: "path/to/file.ts:symbol"   # 行番号は検査できないので書かない
 related_to: []           # optional — 同ディレクトリの実在 TPL の id のみ（例: [TPL-123]）
 topic: <controlled-vocabulary>   # config の topics があればそのどれか、無ければ free-form kebab
 scope:
