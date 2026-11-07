@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+#
+# CodeRabbit reviews here as an advisory first pass. It does not gate a PR, so
+# every review is COMMENTED rather than changes-requested or approved. The
+# maintainer decides whether a PR is ready to merge.
+
+# Without this, a repo file replaces the organization's settings instead of
+# overriding only the keys named below.
+inheritance: true
+
+reviews:
+  auto_review:
+    # The first review runs when a PR leaves draft. A later one is asked for with
+    # `@coderabbitai review`, so a push does not spend a review on its own.
+    auto_incremental_review: false
+  auto_approvals:
+    enabled: false
+  # Legacy alias of auto_approvals.enabled. Set too so an inherited value under
+  # this name cannot turn the workflow back on.
+  request_changes_workflow: false
