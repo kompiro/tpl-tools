@@ -517,7 +517,7 @@ function headingAnchors(markdown: string): Set<string> {
   const anchors = new Set<string>();
   const seen = new Map<string, number>();
   let fence: string | undefined;
-  for (const line of markdown.split("\n")) {
+  for (const line of markdown.split(/\r?\n/)) {
     const marker = FENCE_RE.exec(line)?.[1];
     if (marker !== undefined) {
       if (fence === undefined) fence = marker;

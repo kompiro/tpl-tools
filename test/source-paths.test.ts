@@ -459,6 +459,14 @@ describe("checkRootCauseFile", () => {
     },
   );
 
+  it("recognizes a fence in a CRLF file", () => {
+    writeFileSync(join(tree, "docs/design/crlf.md"), "# One\r\n\r\n```sh\r\n# inside\r\n```\r\n");
+    expect(check("docs/design/crlf.md#one")).toBeUndefined();
+    expect(check("docs/design/crlf.md#inside")).toMatchObject({
+      kind: "root-cause-file-anchor-missing",
+    });
+  });
+
   it("does not take a comment in a fence for a heading", () => {
     expect(check("docs/design/b.md#only-a-comment")).toMatchObject({
       kind: "root-cause-file-anchor-missing",
