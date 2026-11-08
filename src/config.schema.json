@@ -48,10 +48,9 @@
       "items": {
         "type": "string",
         "minLength": 1,
-        "pattern": "^[^/\\\\]+$",
-        "not": { "enum": [".", ".."] }
+        "pattern": "^(?!/)(?![\\s\\S]*//)(?![\\s\\S]*/$)(?!(?:[\\s\\S]*/)?\\.\\.?(?:/|$))[^\\\\]+$"
       },
-      "description": "Top-level directories that hold source (e.g. `packages`, `scripts`, `.github`). A code span in a TPL body counts as a source path only when its first segment is one of these: `tpl validate` checks that the path exists, and `tpl related --changed-files` / `--base` recall the TPL when that file changes. `--source-prefix` on the command line replaces this list. Omit to read no path from the body."
+      "description": "Repo-relative directories that hold source (e.g. `packages`, `.github`, `docs/design`). A code span in a TPL body and a frontmatter `root_cause_file` count as source paths only when their leading segments are one of these: `tpl validate` checks that the path exists, and `tpl related --changed-files` / `--base` recall the TPL when that file changes. `--source-prefix` on the command line replaces this list. Omit to read no path from the body."
     },
     "testFileInfixes": {
       "type": "array",

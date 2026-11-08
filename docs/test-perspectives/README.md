@@ -57,7 +57,7 @@ known_consumers:           # optional — この観点が適用されると判�
 discovered_from:
   - issue: "#1234"
   - root_cause_adr: "ADR-..."                # optional
-  - root_cause_file: "path/to/file.ts:LINE"  # optional
+  - root_cause_file: "path/to/file.ts:symbol"  # optional
 related_to:
   - TPL-...
 topic: <your-topic>        # reference-data の "topics" のいずれか

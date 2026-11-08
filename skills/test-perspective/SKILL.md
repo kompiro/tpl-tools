@@ -44,7 +44,7 @@ TPL を書く前に、ホスト repo が `tpl` をどう使っているかを確
 | `topics` | `topic` はこの語彙のどれか。無ければ free-form の小文字 kebab。ホスト repo が ADR の語彙（`adr.config.json` の `topics` 等）を持つなら TPL と共有する |
 | `indexFile` / `indexCheck` | 索引が生成ファイルかどうか（下記「索引」）。`indexCheck` の既定は `true`（`indexCheck` は tpl-tools v0.0.13 以降） |
 | `checklistHeading` | チェックリストの節の見出しと、項目末尾のマーカー（下記「チェックリスト」） |
-| `sourcePrefixes` | 本文のコードスパンのうちソースのパスとして扱う最上位ディレクトリ。`tpl validate` が実在を検査し、`tpl related --changed-files` がこれで TPL を引く（tpl-tools v0.0.14 以降） |
+| `sourcePrefixes` | 本文のコードスパンと frontmatter の `root_cause_file` のうちソースのパスとして扱う repo 相対のディレクトリ（`docs/design` のような入れ子も可）。`tpl validate` が実在を検査し、`tpl related --changed-files` がこれで TPL を引く（tpl-tools v0.0.14 以降） |
 | `testFileInfixes` | テストファイル名からソースを引く規則。既定は `[".test",".spec"]`（`foo.test.ts` → `foo.ts`。tpl-tools v0.0.14 以降） |
 
 ### 使うサブコマンド
@@ -122,6 +122,7 @@ TPL は 2 つの起源から生まれる。frontmatter の `discovered_from` で
   - `applicable_to` — 適用される **抽象パターン**。consumer の具体名は書かない（そちらは `known_consumers`）。consumer 空間が広すぎて列挙が無意味なら `known_consumers` ごと省略してよい
   - `known_consumers` — 新たに該当 consumer が見つかったら追記する
   - `scope.paths` — 本文がどのファイルも名指さない TPL（例: すべての workflow に当てはまる規則）にだけ glob を書く。広い glob はほぼすべての `tpl related --changed-files` に出てくるので狭く保つ（tpl-tools v0.0.14 以降）
+  - `root_cause_file` は `path`、`path:symbol`、`path#anchor` で書く。行番号（`path:42`）は「その行がまだ同じ意味か」を検査できないので `tpl validate` が落とす
   - 本文で守っているテストやソースを名指すときは、`sourcePrefixes` の下のパスをコードスパン全体で書く。`tpl validate` が実在を検査し、`tpl related --changed-files` がそのファイルの変更でこの TPL を引く
 
 #### 2-4. チェックリスト

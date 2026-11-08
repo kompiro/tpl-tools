@@ -1,6 +1,6 @@
 import { checkChecklist } from "./checklist.ts";
 import { globMatchesAFile, globSyntaxError } from "./glob.ts";
-import { ABSENT_PATH_MARKER, checkSourcePaths } from "./source-paths.ts";
+import { ABSENT_PATH_MARKER, checkRootCauseFile, checkSourcePaths } from "./source-paths.ts";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { load as parseYaml } from "js-yaml";
@@ -69,6 +69,10 @@ export type Finding =
   | { kind: "index-unreadable"; index: string; message: string }
   | { kind: "body-source-path-missing"; file: string; line: number; path: string }
   | { kind: "absent-path-marker-unused"; file: string; line: number }
+  | { kind: "root-cause-file-missing"; file: string; path: string }
+  | { kind: "root-cause-file-line-number"; file: string; citation: string }
+  | { kind: "root-cause-file-symbol-missing"; file: string; path: string; symbol: string }
+  | { kind: "root-cause-file-anchor-missing"; file: string; path: string; anchor: string }
   | { kind: "absent-path-marker-empty-reason"; file: string; line: number }
   | { kind: "checklist-missing"; file: string; heading: string }
   | { kind: "checklist-empty"; file: string; line: number; heading: string }
@@ -457,9 +461,10 @@ interface ValidateOptions {
    */
   indexPath?: string;
   /**
-   * Top-level directories that hold source. A code span in a TPL body is
-   * checked against the working tree only when its first path segment is one
-   * of these. Empty or omitted skips the body-path check entirely, the way
+   * Repo-relative directories that hold source. A code span in a TPL body and a
+   * frontmatter `root_cause_file` are checked against the working tree only when
+   * their leading path segments are one of these. Empty or omitted skips both
+   * checks, the way
    * `validPackages: null` skips the scope.packages check.
    */
   sourcePrefixes?: readonly string[];
@@ -554,6 +559,17 @@ export function validateAll(opts: ValidateOptions): ValidateResult {
     }
 
     for (const cf of checklist) findings.push({ ...cf, file: full });
+
+    // A deprecated TPL may have been deprecated because its file is gone, and its
+    // citation stays as the record of why.
+    const discoveredFrom =
+      result.parsed?.fm.status === "deprecated" ? undefined : result.parsed?.fm.discovered_from;
+    for (const entry of Array.isArray(discoveredFrom) ? discoveredFrom : []) {
+      const citation: unknown = entry?.root_cause_file;
+      if (typeof citation !== "string") continue;
+      const finding = checkRootCauseFile(citation, sourcePrefixes, repoRoot);
+      if (finding) findings.push({ ...finding, file: full });
+    }
   }
 
   findings.push(...validateUniqueIds(parsed));
@@ -638,6 +654,14 @@ export function formatFinding(f: Finding): string {
       return `${f.index}: cannot read the index file: ${f.message}`;
     case "body-source-path-missing":
       return `${f.file}:${f.line}: \`${f.path}\` does not exist`;
+    case "root-cause-file-missing":
+      return `${f.file}: discovered_from root_cause_file "${f.path}" is not in the working tree`;
+    case "root-cause-file-line-number":
+      return `${f.file}: discovered_from root_cause_file "${f.citation}" cites a line number, which nothing can check; cite a symbol (path:symbol) or an anchor (path#anchor)`;
+    case "root-cause-file-symbol-missing":
+      return `${f.file}: discovered_from root_cause_file "${f.path}" no longer contains "${f.symbol}"`;
+    case "root-cause-file-anchor-missing":
+      return `${f.file}: discovered_from root_cause_file "${f.path}" has no heading for #${f.anchor}`;
     case "absent-path-marker-unused":
       return `${f.file}:${f.line}: \`${ABSENT_PATH_MARKER}\` declares an absent path, but every path on the next line resolves`;
     case "absent-path-marker-empty-reason":

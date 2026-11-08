@@ -204,15 +204,20 @@ describe("loadReferenceData", () => {
     expect("testFileInfixes" in loaded).toBe(false);
   });
 
-  it.each([["packages/core"], [""], [".."], ["a\\b"]])(
-    "rejects a source prefix that cannot be one path segment: %j",
+  it.each([[""], [".."], ["a/../b"], ["a\\b"], ["/a"], ["a/"], ["a//b"]])(
+    "rejects a source prefix that is not a clean repo-relative directory: %j",
     (prefix) => {
       const path = tmpFile("c.json", JSON.stringify({ sourcePrefixes: [prefix] }));
       expect(() => loadReferenceData(path)).toThrow(
-        /"sourcePrefixes" holds top-level directory names/,
+        /"sourcePrefixes" holds repo-relative directories/,
       );
     },
   );
+
+  it("loads a nested source prefix", () => {
+    const path = tmpFile("c.json", JSON.stringify({ sourcePrefixes: ["docs/design"] }));
+    expect(loadReferenceData(path).sourcePrefixes).toEqual(["docs/design"]);
+  });
 
   it("rejects sourcePrefixes that is not a string array", () => {
     const path = tmpFile("c.json", JSON.stringify({ sourcePrefixes: "packages" }));
@@ -226,8 +231,9 @@ describe("loadReferenceData", () => {
 });
 
 describe("sourcePrefixError", () => {
-  it("accepts one directory name, a dot directory included", () => {
+  it("accepts a directory name, a dot directory and a nested path", () => {
     expect(sourcePrefixError("packages")).toBeUndefined();
     expect(sourcePrefixError(".github")).toBeUndefined();
+    expect(sourcePrefixError("docs/design")).toBeUndefined();
   });
 });
